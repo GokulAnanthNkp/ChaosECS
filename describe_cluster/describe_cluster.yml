@@ -1,0 +1,27 @@
+version: 1.0.0
+title: Describe a cluster in ECS
+description: Describing a cluster in ECS
+steady-state-hypothesis:
+  title: Pod exists
+  probes:
+  - name: describe-cluster
+    tolerance:
+             type : jsonpath
+             path : $.clusters[0].runningTasksCount
+             expect: 1
+    provider:
+       arguments:
+         cluster: 'default'
+       func: describe_cluster
+       module: chaosaws.ecs.probes
+       type: python
+    type: probe
+method:
+  - name: describe-cluster
+    provider:
+       arguments:
+         cluster: 'default'
+       func: describe_cluster
+       module: chaosaws.ecs.probes
+       type: python
+    type: probe

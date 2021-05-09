@@ -1,0 +1,3183 @@
+<!DOCTYPE html>
+
+<html>
+
+ 
+
+<head>
+
+  <meta charset="utf-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ChaosEngineering</title>
+
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+
+</head>
+
+ 
+
+<body class="stackedit">
+
+  <div class="stackedit__left">
+
+    <div class="stackedit__toc">
+
+     
+
+<ul>
+
+<li>
+
+<ul>
+
+<li><a href="#cloud-native-chaos-engineering-using-litmuschaos.io">Cloud Native Chaos Engineering Using LitmusChaos.io</a></li>
+
+<li><a href="#create-a-gke-cluster-on-gcp">Create a GKE Cluster on GCP</a></li>
+
+<li><a href="#litmus-chaos--getting-started">Litmus Chaos : Getting Started</a></li>
+
+<li><a href="#i-container-kill-experiment">i) Container Kill Experiment:</a></li>
+
+<li><a href="#more-chaos-experiments">More Chaos Experiments</a></li>
+
+<li><a href="#ii-pod-delete-experiment"> ii) Pod Delete Experiment</a></li>
+
+<li><a href="#iii-pod-cpu-hog">iii) Pod CPU Hog</a></li>
+
+<li><a href="#iv-node-drain-experiment">iv) Node Drain Experiment</a></li>
+
+<li><a href="#v-node-cpu-hog-experiment">v) Node CPU Hog Experiment</a></li>
+
+<li><a href="#vi-node-memory-hog-experiment">vi) Node Memory Hog Experiment</a></li>
+
+<li><a href="#vii-pod-network-loss-experiment">vii) Pod Network Loss Experiment</a></li>
+
+<li><a href="#viii-pod-network-corruption-experiment">viii) Pod Network Corruption Experiment</a></li>
+
+<li><a href="#ix-pod-network-latency-experiment">ix) Pod Network Latency Experiment</a></li>
+
+<li><a href="#general-how-to">General How-To</a></li>
+
+<li><a href="#troubleshooting-litmus">Troubleshooting Litmus</a></li>
+
+</ul>
+
+</li>
+
+</ul>
+
+ 
+
+    </div>
+
+  </div>
+
+  <div class="stackedit__right">
+
+    <div class="stackedit__html">
+
+      <h2 id="cloud-native-chaos-engineering-using-litmuschaos.io">Cloud Native Chaos Engineering Using <a href="http://LitmusChaos.io">LitmusChaos.io</a></h2>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<ol>
+
+<li>You need a Google Cloud Platform account with billing enabled. Visit the  <a href="https://console.cloud.google.com/">Google Developers Console</a>  for more details.</li>
+
+<li>Sign up for a GCP Account via :  <a href="https://cloud.google.com/free">https://cloud.google.com/free</a></li>
+
+<li>Install  <code>gcloud</code>  as necessary.  <code>gcloud</code>  can be installed as a part of the  <a href="https://cloud.google.com/sdk/">Google Cloud SDK</a>.</li>
+
+<li>Enable the  <a href="https://console.developers.google.com/apis/api/replicapool.googleapis.com/overview">Compute Engine Instance Group Manager API</a>  in the  <a href="https://console.developers.google.com/apis/library">Google Cloud developers console</a>.</li>
+
+<li>Make sure that gcloud is set to use the Google Cloud Platform project you want. You can check the current project using  <code>gcloud config list project</code>  and change it via  <code>gcloud config set project &lt;project-id&gt;</code>.</li>
+
+<li>Make sure you have credentials for GCloud by running  <code>gcloud auth login</code>.</li>
+
+<li>(Optional) In order to make API calls against GCE, you must also run  <code>gcloud auth application-default login</code>.</li>
+
+<li>Make sure you can start up a GCE VM from the command line. At least make sure you can do the  <a href="https://cloud.google.com/compute/docs/instances/#startinstancegcloud">Create an instance</a>  part of the GCE Quickstart.</li>
+
+<li>Make sure you can SSH into the VM without interactive prompts. See the  <a href="https://cloud.google.com/compute/docs/instances/#sshing">Log in to the instance</a>  part of the GCE Quickstart.</li>
+
+</ol>
+
+<h2 id="create-a-gke-cluster-on-gcp">Create a GKE Cluster on GCP</h2>
+
+<p>To create a Kubernetes cluster, follow the instructions below:</p>
+
+<ul>
+
+<li>
+
+<p>Run the commands below. Remember to replace MY-KUBERNETES-CLUSTER with the name you chose for your cluster, and use a different subnetwork name if you don’t wish to use the default one.</p>
+
+<pre><code>gcloud container clusters create MY_KUBERNETES_CLUSTER \
+
+  --subnetwork default
+
+ 
+
+</code></pre>
+
+<blockquote>
+
+<p>NOTE: The number of nodes created by default in a Kubernetes cluster is 3. You can add additional arguments to set up some parameters such as a specific number of nodes or the disk size:</p>
+
+<pre><code>--num-nodes N
+
+--disk-size N
+
+</code></pre>
+
+</blockquote>
+
+<p>Once the cluster has been created you will see the information related to it:</p>
+
+</li>
+
+</ul>
+
+<pre><code>Creating cluster my-kubernetes-cluster in asia-south1-b... Cluster is being health-checked (master is healthy)...done.      
+
+Created [https://container.googleapis.com/v1/projects/wipro-sysassure-poc/zones/asia-south1-b/clusters/my-kubernetes-cluster].
+
+To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-south1-b/my-kubernetes-cluster?project=wipro-sysassure-poc
+
+kubeconfig entry generated for my-kubernetes-cluster.
+
+NAME          LOCATION       MASTER_VERSION  MASTER_IP      MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
+
+my-kubernetes-cluster  asia-south1-b  1.14.10-gke.17  35.200.184.57  n1-standard-1  1.14.10-gke.17  3          RUNNING
+
+</code></pre>
+
+<p>The new cluster will also appear in the  <a href="https://console.cloud.google.com/kubernetes/">Container Engine -&gt; Container cluster</a>  section within Google Cloud Platform:</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/gke.png" alt="Create Kubernetes cluster"></p>
+
+<ul>
+
+<li>
+
+<p>Configure the compute zone. Remember that this zone must match the one you indicated in Step 1. Replace the COMPUTE_ZONE placeholder with the correct value.</p>
+
+<pre><code>gcloud config set compute/zone  COMPUTE_ZONE
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>Get your cluster credentials:</p>
+
+<pre><code>gcloud container clusters get-credentials MY_KUBERNETES_CLUSTER
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>Authenticate your cluster:</p>
+
+<pre><code>gcloud auth application-default login
+
+ 
+
+</code></pre>
+
+</li>
+
+</ul>
+
+<h3 id="install-the-kubectl-command-line-tool">Install The Kubectl Command-Line Tool</h3>
+
+<p>In order to start working on a Kubernetes cluster, it is necessary to install the Kubernetes command line (<em>kubectl</em>). Follow these steps to install the  <em>kubectl</em>  CLI:</p>
+
+<ul>
+
+<li>
+
+<p>Execute the following commands to install the  <em>kubectl</em>  CLI. OS_DISTRIBUTION is a placeholder for the binary distribution of  <em>kubectl</em>, remember to replace it with the corresponding distribution for your Operating System (OS).</p>
+
+<pre><code>curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/OS_DISTRIBUTION/amd64/kubectl
+
+chmod +x ./kubectl
+
+sudo mv ./kubectl /usr/local/bin/kubectl   
+
+</code></pre>
+
+<blockquote>
+
+<p>TIP: Once the  <em>kubectl</em>  CLI is installed, you can obtain information about the current version with the  <em>kubectl version</em>  command.</p>
+
+</blockquote>
+
+<blockquote>
+
+<p>NOTE: You can also install  <em>kubectl</em>  by using the  <em>sudo apt-get install kubectl</em>  command.</p>
+
+</blockquote>
+
+</li>
+
+<li>
+
+<p>Check that  <em>kubectl</em>  is correctly installed and configured by running the  <em>kubectl cluster-info</em>  command:</p>
+
+<pre><code>kubectl cluster-info
+
+ 
+
+</code></pre>
+
+<blockquote>
+
+<p>NOTE: The  <em>kubectl cluster-info</em>  command shows the IP addresses of the Kubernetes node master and its services.</p>
+
+</blockquote>
+
+</li>
+
+</ul>
+
+<h3 id="get-source-code-for-sock-shop-micro-service-demo">Get source code for Sock-Shop Micro Service demo</h3>
+
+<p>Clone the repo to your local development machine</p>
+
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token function">git</span> clone https://github.com/k8s-dev/microservices-demo.git
+
+<span class="token function">cd</span> microservices-demo
+
+</code></pre>
+
+<h3 id="deploy-sock-shop-micro-service-demo">Deploy Sock-Shop Micro Service demo</h3>
+
+<p>Follow the steps shown in this video to setup the microservice demo on GKE cluster<br>
+
+<a href="https://asciinema.org/a/HtWvfufEq8j10LbdqmEMVCyuf"><img src="https://asciinema.org/a/HtWvfufEq8j10LbdqmEMVCyuf.svg" alt="asciicast"></a></p>
+
+<p>Now cluster is ready with the sock-shop application hosted on GKE cluster. Access it with the loadbalancer IP address which is shown in the output.</p>
+
+<h2 id="litmus-chaos--getting-started">Litmus Chaos : Getting Started</h2>
+
+<p>Litmus is a toolset to do chaos engineering in a kubernetes native way. Litmus provides chaos CRDs for Cloud-Native developers and SREs to inject, orchestrate and monitor chaos to find weaknesses in Kubernetes deployments.</p>
+
+<p>Typically running chaos on your application involves the following steps:</p>
+
+<p><a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">Install Litmus</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#install-chaos-experiments">Install Chaos Experiments</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#setup-service-account">Setup Service Account</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#annotate-your-application">Annotate your application</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Prepare ChaosEngine</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#run-chaos">Run Chaos</a><br>
+
+<a href="https://docs.litmuschaos.io/docs/getstarted/#observe-chaos-results">Observe chaos results</a></p>
+
+<p>Here we are going to execute pod-kill experiment via litmus chaos. Rest of the experiments will follow the similar pattern.</p>
+
+<h3 id="install-litmus"><a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus"></a> Install Litmus</h3>
+
+<pre><code>kubectl apply -f https://litmuschaos.github.io/pages/litmus-operator-v1.2.0.yaml
+
+ 
+
+</code></pre>
+
+<p>The above command install all the CRDs, required service account configuration, and chaos-operator. Before you start running a chaos experiment, verify if Litmus is installed correctly.</p>
+
+<p><strong>Verify your installation</strong></p>
+
+<ul>
+
+<li>Verify if the chaos operator is running</li>
+
+</ul>
+
+<pre><code>kubectl get pods -n litmus
+
+ 
+
+</code></pre>
+
+<p>Expected output:</p>
+
+<blockquote>
+
+<p>chaos-operator-ce-554d6c8f9f-slc8k 1/1 Running 0 6m41s</p>
+
+</blockquote>
+
+<ul>
+
+<li>Verify if chaos CRDs are installed</li>
+
+</ul>
+
+<pre><code>kubectl get crds | grep chaos
+
+ 
+
+</code></pre>
+
+<p>Expected output:</p>
+
+<blockquote>
+
+<p><a href="http://chaosengines.litmuschaos.io">chaosengines.litmuschaos.io</a> 2019-10-02T08:45:25Z</p>
+
+<p><a href="http://chaosexperiments.litmuschaos.io">chaosexperiments.litmuschaos.io</a> 2019-10-02T08:45:26Z</p>
+
+<p><a href="http://chaosresults.litmuschaos.io">chaosresults.litmuschaos.io</a> 2019-10-02T08:45:26Z</p>
+
+</blockquote>
+
+<ul>
+
+<li>
+
+<p>Verify if the chaos api resources are successfully created in the desired (application) namespace.</p>
+
+<p><em>Note</em>: Sometimes, it can take a few seconds for the resources to be available post the CRD installation</p>
+
+</li>
+
+</ul>
+
+<pre><code>kubectl api-resources | grep chaos
+
+ 
+
+</code></pre>
+
+<p>Expected output:</p>
+
+<blockquote>
+
+<p>chaosengines <a href="http://litmuschaos.io">litmuschaos.io</a> true ChaosEngine</p>
+
+<p>chaosexperiments <a href="http://litmuschaos.io">litmuschaos.io</a> true ChaosExperiment</p>
+
+<p>chaosresults <a href="http://litmuschaos.io">litmuschaos.io</a> true ChaosResult</p>
+
+</blockquote>
+
+<p><strong>NOTE</strong>:</p>
+
+<ul>
+
+<li>
+
+<p>In this guide, we shall describe the steps to inject container-kill chaos on <code>microservice-demo</code> application already deployed in the <code>sock-shop</code> namespace. It is a mandatory requirement to ensure that the chaos custom resources (chaosexperiment and chaosengine) and the experiment specific serviceaccount are created in the same namespace (typically, the same as the namespace of the application under test (AUT), in this case <code>sock-shop</code>). This is done to ensure that the developers/users of the experiment isolate the chaos to their respective work-namespaces in shared environments.</p>
+
+</li>
+
+<li>
+
+<p>In all subsequent steps, please follow these instructions by replacing the <code>sock-shop</code> namespace and labels with that of your application.</p>
+
+</li>
+
+</ul>
+
+<h3 id="install-chaos-experiments"><a href="https://docs.litmuschaos.io/docs/getstarted/#install-chaos-experiments"></a>Install Chaos Experiments</h3>
+
+<p>Chaos experiments contain the actual chaos details. These experiments are installed on your cluster as Kubernetes CRs. The Chaos Experiments are grouped as Chaos Charts and are published on  <a href="https://hub.litmuschaos.io/">Chaos Hub</a>.</p>
+
+<p>The generic chaos experiments such as  <code>pod-delete</code>,  <code>container-kill</code>,<code>pod-network-latency, etc.</code>  are available under Generic Chaos Chart. This is the first chart you are recommended to install.</p>
+
+<pre><code>kubectl apply -f https://hub.litmuschaos.io/api/chaos?file=charts/generic/experiments.yaml -n sock-shop
+
+ 
+
+</code></pre>
+
+<p>Verify if the chaos experiments are installed.</p>
+
+<pre><code>kubectl get chaosexperiments -n sock-shop
+
+ 
+
+</code></pre>
+
+<h2 id="i-container-kill-experiment">i) Container Kill Experiment:</h2>
+
+<p>In this first experiment, we will kill the container running within a pod.</p>
+
+<h3 id="setup-service-account"><a href="https://docs.litmuschaos.io/docs/getstarted/#setup-service-account"></a>Setup Service Account</h3>
+
+<p>A service account should be created to allow chaosengine to run experiments in your application namespace. Copy the following into a  <code>rbac.yaml</code>  manifest and run  <code>kubectl apply -f rbac.yaml</code>  to create one such account on the <code>sock-shop</code> namespace. This serviceaccount has just enough permissions needed to run the container-kill chaos experiment.</p>
+
+<p><strong>NOTE</strong>:</p>
+
+<ul>
+
+<li>For rbac samples corresponding to other experiments such as, say, pod-delete, please refer the respective experiment folder in the  <a href="https://github.com/litmuschaos/chaos-charts/tree/master/charts/generic/pod-delete">chaos-charts</a>  repository.</li>
+
+</ul>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">,</span><span class="token string">"apps"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"daemonsets"</span><span class="token punctuation">,</span><span class="token string">"pods/exec"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+ 
+
+</code></pre>
+
+<p>Execute the following to create the service account and required role, rolebindings.</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl apply -f rbac.yaml
+
+ 
+
+</code></pre>
+
+<h3 id="annotate-your-application"><a href="https://docs.litmuschaos.io/docs/getstarted/#annotate-your-application"></a>Annotate your application</h3>
+
+<p>Your application has to be annotated with  <code>litmuschaos.io/chaos="true"</code>. As a security measure, and also as a means to reduce blast radius the chaos operator checks for this annotation before invoking chaos experiment(s) on the application. Replace  <code>carts</code>  with the name of your deployment.</p>
+
+<p><strong>NOTE</strong>: Litmus supports chaos on deployments, statefulsets &amp; daemonsets. This example refers to a <code>cart</code> deploymemt. In case of other types, please use the appropriate resource/resource-name convention (say, <code>sts/kafka</code> or <code>ds/node-device-manager</code>, for example).</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl annotate deploy/carts litmuschaos.io/chaos="true" -n sock-shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine"><a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<p>ChaosEngine connects the application instance to a Chaos Experiment. Copy the following YAML snippet into a file called  <code>chaosengine.yaml</code>  and update the values of  <code>applabel</code>  ,  <code>appns</code>,  <code>appkind</code>  and  <code>experiments</code>  as per your choice. Change the  <code>chaosServiceAccount</code>  to the name of service account created in above previous steps.</p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> carts<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill<span class="token punctuation">-</span>sa
+
+  <span class="token comment"># use retain to keep the job for debug</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> container<span class="token punctuation">-</span>kill
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment"># specify the name of the container to be killed</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TARGET_CONTAINER
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'carts'</span>
+
+ 
+
+</code></pre>
+
+<h3 id="run-chaos"><a href="https://docs.litmuschaos.io/docs/getstarted/#run-chaos"></a>Run Chaos</h3>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl apply -f chaosengine.yaml
+
+ 
+
+</code></pre>
+
+<h3 id="run-results">Run Results</h3>
+
+<p>Observe that Restart Count of the container has gone up which says that experiment has been successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/con-kill.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="observe-chaos-results"><a href="https://docs.litmuschaos.io/docs/getstarted/#observe-chaos-results"></a>Observe Chaos results</h3>
+
+<p>Describe the ChaosResult CR to know the status of each experiment. The  <code>spec.verdict</code>  is set to  <code>Awaited</code>  when the experiment is in progress, eventually changing to either  <code>Pass</code>  or  <code>Fail</code>.</p>
+
+<p><strong>NOTE:</strong>  ChaosResult CR name will be  <code>&lt;chaos-engine-name&gt;-&lt;chaos-experiment-name&gt;</code></p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl describe chaosresult cart-chaos-container-kill -n sock-shop
+
+ 
+
+</code></pre>
+
+<h3 id="uninstallation"><a href="https://docs.litmuschaos.io/docs/getstarted/#uninstallation"></a>Uninstallation</h3>
+
+<p>You can uninstall Litmus by deleting the namespace and other CRDs.</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl delete -f https://litmuschaos.github.io/pages/litmus-operator-v1.2.0.yaml
+
+ 
+
+</code></pre>
+
+<h2 id="more-chaos-experiments"><a href="https://docs.litmuschaos.io/docs/getstarted/#more-chaos-experiments"></a>More Chaos Experiments</h2>
+
+<h2 id="ii-pod-delete-experiment"><a href="https://docs.litmuschaos.io/docs/pod-delete/#"></a> ii) Pod Delete Experiment</h2>
+
+<h3 id="prerequisites-1"><a href="https://docs.litmuschaos.io/docs/pod-delete/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>).If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the  <code>pod-delete</code>  experiment resource is available in the cluster by executing  <code>kubectl get chaosexperiments</code>  in the desired namespace. If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/pod-delete">here</a></li>
+
+</ul>
+
+<h3 id="entry-criteria"><a href="https://docs.litmuschaos.io/docs/pod-delete/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria"><a href="https://docs.litmuschaos.io/docs/pod-delete/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details"><a href="https://docs.litmuschaos.io/docs/pod-delete/#details"></a>Details</h3>
+
+<ul>
+
+<li>Causes (forced/graceful) pod failure of specific/random replicas of an application resources</li>
+
+<li>Tests deployment sanity (replica availability &amp; uninterrupted service) and recovery workflow of the application</li>
+
+<li>The pod delete by  <code>Powerfulseal</code>  is only supporting single pod failure (kill_count = 1)</li>
+
+</ul>
+
+<h3 id="integrations"><a href="https://docs.litmuschaos.io/docs/pod-delete/#integrations"></a>Integrations</h3>
+
+<ul>
+
+<li>Pod failures can be effected using one of these chaos libraries:  <code>litmus</code>,  <code>powerfulseal</code></li>
+
+<li>The desired chaos library can be selected by setting one of the above options as value for the env variable  <code>LIB</code></li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment"><a href="https://docs.litmuschaos.io/docs/pod-delete/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaosserviceaccount"><a href="https://docs.litmuschaos.io/docs/pod-delete/#prepare-chaosserviceaccount"></a>Prepare chaosServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest"><a href="https://docs.litmuschaos.io/docs/pod-delete/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">,</span><span class="token string">"apps"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"deployments"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"configmaps"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"nodes"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span> <span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-1"><a href="https://docs.litmuschaos.io/docs/pod-delete/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest"><a href="https://docs.litmuschaos.io/docs/pod-delete/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> cartsdb<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts-db'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx</span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>delete
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment"># set chaos duration (in sec) as desired</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'30'</span>
+
+ 
+
+            <span class="token comment"># set chaos interval (in sec) as desired</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CHAOS_INTERVAL
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'10'</span>
+
+             
+
+            <span class="token comment"># pod failures without '--force' &amp; default terminationGracePeriodSeconds</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> FORCE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'false'</span>
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource"><a href="https://docs.litmuschaos.io/docs/pod-delete/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress"><a href="https://docs.litmuschaos.io/docs/pod-delete/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>View pod terminations &amp; recovery by setting up a watch on the pods in the application namespace</p>
+
+<p><code>watch -n 1 kubectl get pods -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-1">Run Results</h3>
+
+<p>Observe that a new carts-db pod has been started and the earlier one is killed which says that experiment has been successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/post-poddelete.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result"><a href="https://docs.litmuschaos.io/docs/pod-delete/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the pod failure, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult carts-chaos-pod-delete -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<hr>
+
+<h2 id="iii-pod-cpu-hog">iii) Pod CPU Hog</h2>
+
+<h3 id="prerequisites-2">Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing <code>kubectl get pods</code> in operator namespace (typically, <code>litmus</code>). If not, install from <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the <code>pod-cpu-hog</code> experiment resource is available in the cluster by executing <code>kubectl get chaosexperiments</code> in the desired namespace. If not, install from <a href="https://hub.litmuschaos.io/charts/generic/experiments/pod-cpu-hog">here</a></li>
+
+<li>Cluster must run docker container runtime</li>
+
+</ul>
+
+<h3 id="entry-criteria-1">Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy on the respective nodes before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-1">Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy on the respective nodes post chaos injection</li>
+
+</ul>
+
+<h3 id="details-1">Details</h3>
+
+<ul>
+
+<li>This experiment consumes the CPU resources on the application container (upward of 80%) on specified number of cores</li>
+
+<li>It simulates conditions where app pods experience CPU spikes either due to expected/undesired processes thereby testing how the<br>
+
+overall application stack behaves when this occurs.</li>
+
+</ul>
+
+<h3 id="integrations-1">Integrations</h3>
+
+<ul>
+
+<li>Pod CPU can be effected using the chaos library: <code>litmus</code></li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-1">Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer <a href="getstarted.md/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount">Prepare Chaos ServiceAccount</h3>
+
+<p>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</p>
+
+<h4 id="sample-rbac-manifest-1">Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-2">Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in <code>spec.appinfo</code></li>
+
+<li>Provide the auxiliary applications info (ns &amp; labels) in <code>spec.auxiliaryAppInfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-1">Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> carts<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TARGET_CONTAINER
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'carts'</span>
+
+              <span class="token comment">#number of cpu cores to be consumed</span>
+
+              <span class="token comment">#verify the resources the app has been launched with</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CPU_CORES
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'1'</span>
+
+             <span class="token comment"># in ms </span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'60000'</span>
+
+            
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-1">Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-1">Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>Set up a watch on the applications interacting/dependent on the affected pods and verify whether they are running</p>
+
+<p><code>watch kubectl get pods -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-2">Run Results</h3>
+
+<p>Observe that a particular node is getting CPU stressed which says that experiment has been successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/nodecpuhog.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-1">Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application stack is resilient to CPU spikes on the app replica, once the experiment (job) is completed. The ChaosResult resource name is derived like this: <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult carts-chaos-pod-cpu-hog -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="iv-node-drain-experiment">iv) Node Drain Experiment</h2>
+
+<h3 id="prerequisites-3">Prerequisites</h3>
+
+<ul>
+
+<li>
+
+<p>Ensure that the Litmus Chaos Operator is running by executing <code>kubectl get pods</code> in operator namespace (typically, <code>litmus</code>). If not, install from <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></p>
+
+</li>
+
+<li>
+
+<p>Ensure that the <code>node-drain</code> experiment resource is available in the cluster by executing <code>kubectl get chaosexperiments</code> in the desired namespace. If not, install from <a href="https://hub.litmuschaos.io/charts/generic/experiments/node-drain">here</a></p>
+
+</li>
+
+<li>
+
+<p>Ensure that the node specified in the experiment ENV variable <code>APP_NODE</code> (the node which will be drained)  should be cordoned before execution of the chaos experiment (before applying the chaosengine manifest) to ensure that the litmus experiment runner pods are not scheduled on it / subjected to eviction. This can be achieved with the following steps:</p>
+
+<ul>
+
+<li>Get node names against the applications pods: <code>kubectl get pods -o wide</code></li>
+
+<li>Cordon the node <code>kubectl cordon &lt;nodename&gt;</code></li>
+
+</ul>
+
+</li>
+
+</ul>
+
+<h3 id="entry-criteria-2">Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy on the respective Nodes before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-2">Exit Criteria</h3>
+
+<ul>
+
+<li>Target nodes are in Ready state post chaos injection</li>
+
+</ul>
+
+<h3 id="details-2">Details</h3>
+
+<ul>
+
+<li>This experiment drains the node where application pod is running and verifies if it is scheduled on another available node.</li>
+
+<li>In the end of experiment it uncordons the specified node so that it can be utilised in future.</li>
+
+</ul>
+
+<h3 id="integrations-2">Integrations</h3>
+
+<ul>
+
+<li>Drain node can be effected using the chaos library: <code>litmus</code></li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-2">Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer <a href="getstarted.md/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount-1">Prepare Chaos ServiceAccount</h3>
+
+<p>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</p>
+
+<h4 id="sample-rbac-manifest-2">Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">,</span><span class="token string">"extensions"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"daemonsets"</span><span class="token punctuation">,</span><span class="token string">"pods/eviction"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"nodes"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-3">Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in <code>spec.appinfo</code></li>
+
+<li>Provide the auxiliary applications info (ns &amp; labels) in <code>spec.auxiliaryAppInfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-2">Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> carts<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'false'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>drain
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment"># set node name</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> APP_NODE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'node-1'</span>
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-2">Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-2">Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>Set up a watch on the applications originally scheduled on the affected node and verify whether they are rescheduled on the other nodes in the Kubernetes Cluster.</p>
+
+<p><code>watch kubectl get pods,nodes --all-namespaces</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-3">Run Results</h3>
+
+<p>Observe that pods running on certain nodes are getting killed, and are recreated on a separate node which says that experiment has been successful. At the end of experiment - all pods should be in running status.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/mid-nodedrain.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-2">Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the node drain, once the experiment (job) is completed. The ChaosResult resource name is derived like this: <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult carts-chaos-node-drain -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="v-node-cpu-hog-experiment">v) Node CPU Hog Experiment</h2>
+
+<h3 id="prerequisites-4"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>). If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the  <code>node-cpu-hog</code>  experiment resource is available in the cluster by executing  <code>kubectl get chaosexperiments</code>  in the desired namespace. If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/node-cpu-hog">here</a></li>
+
+<li>There should be administrative access to the platform on which the Kubernetes cluster is hosted, as the recovery of the affected node could be manual. For example, gcloud access to the GKE project</li>
+
+</ul>
+
+<h3 id="entry-criteria-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy on the respective Nodes before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods may or may not be healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#details"></a>Details</h3>
+
+<ul>
+
+<li>This experiment causes CPU resource exhaustion on the Kubernetes node. The experiment aims to verify resiliency of applications whose replicas may be evicted on account on nodes turning unschedulable (Not Ready) due to lack of CPU resources.</li>
+
+<li>The CPU chaos is injected using a daemonset running the linux stress tool (a workload generator). The chaos is effected for a period equalling the TOTAL_CHAOS_DURATION</li>
+
+<li>Application implies services. Can be reframed as: Tests application resiliency upon replica evictions caused due to lack of CPU resources</li>
+
+</ul>
+
+<h3 id="integrations-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#integrations"></a>Integrations</h3>
+
+<ul>
+
+<li>CPU Hog can be effected using the chaos library:  <code>litmus</code></li>
+
+<li>The desired chaos library can be selected by setting  <code>litmus</code>  as value for the env variable  <code>LIB</code></li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount-2"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#prepare-chaosserviceaccount"></a>Prepare Chaos ServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">,</span><span class="token string">"apps"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"nodes"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span> <span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-4"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Provide the auxiliary applications info (ns &amp; labels) in  <code>spec.auxiliaryAppInfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> carts<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'false'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>cpu<span class="token punctuation">-</span>hog
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment"># set chaos duration (in sec) as desired</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'60'</span>
+
+ 
+
+             <span class="token comment"># It supprts GKE and EKS Platform</span>
+
+             <span class="token comment"># GKE is the default Platform</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> PLATFORM
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'GKE'</span>
+
+             
+
+            <span class="token comment"># chaos lib used to inject the chaos</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> LIB
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'litmus'</span>
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>Setting up a watch of the CPU consumed by nodes in the Kubernetes Cluster</p>
+
+<p><code>watch kubectl top nodes</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-4">Run Results</h3>
+
+<p>Observe that CPU usage on a certain node has been high. Check the running pods status on the node. All pods should be in running status which says that the experiment is successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/nodecpu.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-3"><a href="https://docs.litmuschaos.io/docs/node-cpu-hog/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the CPU hog, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult carts-chaos-node-cpu-hog -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="vi-node-memory-hog-experiment">vi) Node Memory Hog Experiment</h2>
+
+<h3 id="prerequisites-5"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>). If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the  <code>node-memory-hog</code>  experiment resource is available in the cluster by executing  <code>kubectl get chaosexperiments</code>  in the desired namespace. If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/node-memory-hog">here</a></li>
+
+<li>There should be administrative access to the platform on which the Kubernetes cluster is hosted, as the recovery of the affected node could be manual. For example, gcloud access to the GKE project</li>
+
+</ul>
+
+<h3 id="entry-criteria-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy on the respective Nodes before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods may or may not be healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#details"></a>Details</h3>
+
+<ul>
+
+<li>This experiment causes Memory resource exhaustion on the Kubernetes node. The experiment aims to verify resiliency of applications whose replicas may be evicted on account on nodes turning unschedulable (Not Ready) due to lack of Memory resources.</li>
+
+<li>The Memory chaos is injected using a job running the linux stress-ng tool (a workload generator). The chaos is effected for a period equalling the TOTAL_CHAOS_DURATION and upto MEMORY_PERCENTAGE(out of 100).</li>
+
+<li>Application implies services. Can be reframed as: Tests application resiliency upon replica evictions caused due to lack of Memory resources</li>
+
+</ul>
+
+<h3 id="integrations-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#integrations"></a>Integrations</h3>
+
+<ul>
+
+<li>Node Memory Hog can be effected using the chaos library:  <code>litmus</code></li>
+
+<li>The desired chaos library can be selected by setting  <code>litmus</code>  as value for the env variable  <code>LIB</code></li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount-3"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#prepare-chaosserviceaccount"></a>Prepare Chaos ServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">,</span><span class="token string">"apps"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"nodes"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span> <span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-5"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Provide the auxiliary applications info (ns &amp; labels) in  <code>spec.auxiliaryAppInfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> carts<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'false'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>memory<span class="token punctuation">-</span>hog
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment"># set chaos duration (in sec) as desired</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'120'</span>
+
+ 
+
+            <span class="token comment">## specify the size as percent of total available memory (in percentage %)</span>
+
+            <span class="token comment">## default value 90%</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> MEMORY_PERCENTAGE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'90'</span>  
+
+ 
+
+             <span class="token comment"># It supprts GKE and EKS Platform</span>
+
+             <span class="token comment"># GKE is the default Platform</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> PLATFORM
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'GKE'</span>
+
+             
+
+            <span class="token comment"># chaos lib used to inject the chaos</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> LIB
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'litmus'</span>
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>Setting up a watch of the Memory consumed by nodes in the Kubernetes Cluster</p>
+
+<p><code>watch kubectl top nodes</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-5">Run Results</h3>
+
+<p>Observe that Memory usage on a certain node has been high. Check the running pods status on the node. All pods should be in running status which says that the experiment is successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/in-nodemem.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-4"><a href="https://docs.litmuschaos.io/docs/node-memory-hog/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the memory hog, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult carts-chaos-node-memory-hog -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="vii-pod-network-loss-experiment">vii) Pod Network Loss Experiment</h2>
+
+<h3 id="prerequisites-6"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>
+
+<p>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>). If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></p>
+
+</li>
+
+<li>
+
+<p>Ensure that the  <code>pod-network-loss</code>  experiment resource is available in the cluster by executing  <code>kubectl get chaosexperiments</code>  in the desired namespace. If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/pod-network-loss">here</a></p>
+
+<p><strong>NOTE</strong>: Experiment is supported only on Docker Runtime. Support for containerd/CRIO runtimes will be added in subsequent releases.</p>
+
+</li>
+
+</ul>
+
+<h3 id="entry-criteria-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#details"></a>Details</h3>
+
+<ul>
+
+<li>Pod-network-loss injects chaos to disrupt network connectivity to kubernetes pods.</li>
+
+<li>The application pod should be healthy once chaos is stopped. Service-requests should be served despite chaos.</li>
+
+<li>Causes loss of access to application replica by injecting packet loss using pumba</li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaosserviceaccount-1"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#prepare-chaosserviceaccount"></a>Prepare chaosServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-6"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token comment"># chaosengine.yaml</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> car<span class="token punctuation">-</span>network<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token comment"># FYI, To see app label, apply kubectl get pods --show-labels</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>loss
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment">#Container name where chaos has to be injected              </span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TARGET_CONTAINER
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'carts'</span>
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> LIB_IMAGE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'gaiaadm/pumba:0.6.5'</span>
+
+ 
+
+            <span class="token comment">#Network interface inside target container</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> NETWORK_INTERFACE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'eth0'</span>   
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> NETWORK_PACKET_LOSS_PERCENTAGE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'100'</span>
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> '60' <span class="token comment"># in seconds</span>
+
+           
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>View network latency by setting up a ping on the affected pod from the cluster nodes. Use a busybox pod to run the ping command.</p>
+
+<p><code>ping &lt;pod_ip_address&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-6">Run Results</h3>
+
+<p>Observe ping between the busybox pod and the pod under chaos, see that packet loss occurs which shows that experiment is successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/in-networkloss.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-5"><a href="https://docs.litmuschaos.io/docs/pod-network-loss/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the Pod Network Loss, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult &lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt; -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="viii-pod-network-corruption-experiment">viii) Pod Network Corruption Experiment</h2>
+
+<h3 id="prerequisites-7"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>). If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the  <code>pod-network-corruption</code>  experiment resource is available in the cluster by  <code>kubectl get chaosexperiments</code>  command. If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/pod-network-corruption">here</a></li>
+
+<li>Cluster must run docker container runtime</li>
+
+</ul>
+
+<p><strong>NOTE</strong>: Experiment is supported only on Docker Runtime. Support for containerd/CRIO runtimes will be added in subsequent releases.</p>
+
+<h3 id="entry-criteria-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#details"></a>Details</h3>
+
+<ul>
+
+<li>The application pod should be healthy once chaos is stopped. Service-requests should be served despite chaos.</li>
+
+<li>Injects packet corruption on the specified container by starting a traffic control (tc) process with netem rules to add egress packet corruption</li>
+
+<li>Corruption is injected via pumba library with command pumba netem corruption by passing the relevant network interface, packet-corruption-percentage, chaos duration and regex filter for container name</li>
+
+<li>Can test the application’s resilience to lossy/flaky network</li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount-4"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#prepare-chaosserviceaccount"></a>Prepare Chaos ServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-7"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span>  carts<span class="token punctuation">-</span>network<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token comment"># FYI, To see app label, apply kubectl get pods --show-labels</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>corruption
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+           <span class="token comment">#Container name where chaos has to be injected</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TARGET_CONTAINER
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'carts'</span>
+
+ 
+
+            <span class="token comment">#Network interface inside target container              </span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> NETWORK_INTERFACE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'eth0'</span>
+
+             
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> '60' <span class="token comment"># in seconds</span>
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>View impact of network packet corruption on the affected pod from the cluster nodes (alternate is to setup ping to a remote IP from inside the target pod). Use a busybox pod to run the ping command.</p>
+
+<p><code>ping &lt;pod_ip_address&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-7">Run Results</h3>
+
+<p>Observe ping between the busybox pod and the pod under chaos, see that packet corruption occurs which shows that experiment is successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/pack-corruption.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-6"><a href="https://docs.litmuschaos.io/docs/pod-network-corruption/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the Pod Network Packet Corruption, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult &lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt; -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="ix-pod-network-latency-experiment">ix) Pod Network Latency Experiment</h2>
+
+<h3 id="prerequisites-8"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#prerequisites"></a>Prerequisites</h3>
+
+<ul>
+
+<li>Ensure that the Litmus Chaos Operator is running by executing  <code>kubectl get pods</code>  in operator namespace (typically,  <code>litmus</code>). If not, install from  <a href="https://docs.litmuschaos.io/docs/getstarted/#install-litmus">here</a></li>
+
+<li>Ensure that the  <code>pod-network-latency</code>  experiment resource is available in the cluster by executing kubectl  <code>get chaosexperiments</code>  in the desired namespace. . If not, install from  <a href="https://hub.litmuschaos.io/charts/generic/experiments/pod-network-latency">here</a></li>
+
+</ul>
+
+<p><strong>NOTE</strong>: Experiment is supported only on Docker Runtime. Support for containerd/CRIO runtimes will be added in subsequent releases.</p>
+
+<h3 id="entry-criteria-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#entry-criteria"></a>Entry Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy before chaos injection</li>
+
+</ul>
+
+<h3 id="exit-criteria-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#exit-criteria"></a>Exit Criteria</h3>
+
+<ul>
+
+<li>Application pods are healthy post chaos injection</li>
+
+</ul>
+
+<h3 id="details-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#details"></a>Details</h3>
+
+<ul>
+
+<li>The application pod should be healthy once chaos is stopped. Service-requests should be served despite chaos.</li>
+
+<li>Causes flaky access to application replica by injecting network delay using pumba.</li>
+
+<li>Injects latency on the specified container by starting a traffic control (tc) process with netem rules to add egress delays</li>
+
+<li>Latency is injected via pumba library with command pumba netem delay by passing the relevant network interface, latency, chaos duration and regex filter for container name</li>
+
+<li>Can test the application’s resilience to lossy/flaky network</li>
+
+</ul>
+
+<h3 id="steps-to-execute-the-chaos-experiment-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#steps-to-execute-the-chaos-experiment"></a>Steps to Execute the Chaos Experiment</h3>
+
+<ul>
+
+<li>
+
+<p>This Chaos Experiment can be triggered by creating a ChaosEngine resource on the cluster. To understand the values to provide in a ChaosEngine specification, refer  <a href="https://docs.litmuschaos.io/docs/getstarted/#prepare-chaosengine">Getting Started</a></p>
+
+</li>
+
+<li>
+
+<p>Follow the steps in the sections below to create the chaosServiceAccount, prepare the ChaosEngine &amp; execute the experiment.</p>
+
+</li>
+
+</ul>
+
+<h3 id="prepare-chaos-serviceaccount-5"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#prepare-chaosserviceaccount"></a>Prepare Chaos ServiceAccount</h3>
+
+<ul>
+
+<li>Use this sample RBAC manifest to create a chaosServiceAccount in the desired (app) namespace. This example consists of the minimum necessary role permissions to execute the experiment.</li>
+
+</ul>
+
+<h4 id="sample-rbac-manifest-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#sample-rbac-manifest"></a>Sample Rbac Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">,</span><span class="token string">"litmuschaos.io"</span><span class="token punctuation">,</span><span class="token string">"batch"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">,</span><span class="token string">"jobs"</span><span class="token punctuation">,</span><span class="token string">"pods/log"</span><span class="token punctuation">,</span><span class="token string">"events"</span><span class="token punctuation">,</span><span class="token string">"chaosengines"</span><span class="token punctuation">,</span><span class="token string">"chaosexperiments"</span><span class="token punctuation">,</span><span class="token string">"chaosresults"</span><span class="token punctuation">]</span>
+
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"create"</span><span class="token punctuation">,</span><span class="token string">"list"</span><span class="token punctuation">,</span><span class="token string">"get"</span><span class="token punctuation">,</span><span class="token string">"patch"</span><span class="token punctuation">,</span><span class="token string">"update"</span><span class="token punctuation">,</span><span class="token string">"delete"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1beta1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+ 
+
+</code></pre>
+
+<h3 id="prepare-chaosengine-8"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#prepare-chaosengine"></a>Prepare ChaosEngine</h3>
+
+<ul>
+
+<li>Provide the application info in  <code>spec.appinfo</code></li>
+
+<li>Override the experiment tunables if desired</li>
+
+</ul>
+
+<h4 id="sample-chaosengine-manifest-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#sample-chaosengine-manifest"></a>Sample ChaosEngine Manifest</h4>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> litmuschaos.io/v1alpha1
+
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ChaosEngine
+
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span>  network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>chaos
+
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+  <span class="token comment"># It can be delete/retain</span>
+
+  <span class="token key atrule">jobCleanUpPolicy</span><span class="token punctuation">:</span> <span class="token string">'delete'</span>
+
+  <span class="token comment"># It can be true/false</span>
+
+  <span class="token key atrule">annotationCheck</span><span class="token punctuation">:</span> <span class="token string">'true'</span>
+
+  <span class="token comment"># It can be active/stop</span>
+
+  <span class="token key atrule">engineState</span><span class="token punctuation">:</span> <span class="token string">'active'</span>
+
+  <span class="token comment">#ex. values: ns1:name=percona,ns2:run=nginx </span>
+
+  <span class="token key atrule">auxiliaryAppInfo</span><span class="token punctuation">:</span> <span class="token string">''</span>
+
+  <span class="token key atrule">monitoring</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+  <span class="token key atrule">appinfo</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">appns</span><span class="token punctuation">:</span> <span class="token string">'sock-shop'</span>
+
+    <span class="token comment"># FYI, To see app label, apply kubectl get pods --show-labels</span>
+
+    <span class="token key atrule">applabel</span><span class="token punctuation">:</span> <span class="token string">'name=carts'</span>
+
+    <span class="token key atrule">appkind</span><span class="token punctuation">:</span> <span class="token string">'deployment'</span>
+
+  <span class="token key atrule">chaosServiceAccount</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency<span class="token punctuation">-</span>sa
+
+  <span class="token key atrule">experiments</span><span class="token punctuation">:</span>
+
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>network<span class="token punctuation">-</span>latency
+
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">components</span><span class="token punctuation">:</span>
+
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+
+            <span class="token comment">#Container name where chaos has to be injected</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TARGET_CONTAINER
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'carts'</span>
+
+ 
+
+            <span class="token comment">#Network interface inside target container</span>
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> NETWORK_INTERFACE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'eth0'</span>    
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> LIB_IMAGE
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'gaiaadm/pumba:0.6.5'</span>
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> NETWORK_LATENCY
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'6000'</span>
+
+ 
+
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> TOTAL_CHAOS_DURATION
+
+              <span class="token key atrule">value</span><span class="token punctuation">:</span> '60' <span class="token comment"># in seconds</span>
+
+ 
+
+</code></pre>
+
+<h3 id="create-the-chaosengine-resource-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#create-the-chaosengine-resource"></a>Create the ChaosEngine Resource</h3>
+
+<ul>
+
+<li>
+
+<p>Create the ChaosEngine manifest prepared in the previous step to trigger the Chaos.</p>
+
+<p><code>kubectl apply -f chaosengine.yml</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="watch-chaos-progress-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#watch-chaos-progress"></a>Watch Chaos progress</h3>
+
+<ul>
+
+<li>
+
+<p>View network latency by setting up a ping on the affected pod from the cluster nodes. Create a busybox pod to issue ping command.</p>
+
+<p><code>ping &lt;pod_ip_address&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h3 id="run-results-8">Run Results</h3>
+
+<p>Observe ping between the busybox pod and the pod under chaos, see that extra network latency occurs which shows that experiment is successful.</p>
+
+<p><img src="https://storage.cloud.google.com/wipro-sysassure-poc-chaos/beforelat.png" alt="Create Kubernetes cluster"></p>
+
+<h3 id="check-chaos-experiment-result-7"><a href="https://docs.litmuschaos.io/docs/pod-network-latency/#check-chaos-experiment-result"></a>Check Chaos Experiment Result</h3>
+
+<ul>
+
+<li>
+
+<p>Check whether the application is resilient to the Pod Network Latency, once the experiment (job) is completed. The ChaosResult resource name is derived like this:  <code>&lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt;</code>.</p>
+
+<p><code>kubectl describe chaosresult &lt;ChaosEngine-Name&gt;-&lt;ChaosExperiment-Name&gt; -n &lt;application-namespace&gt;</code></p>
+
+</li>
+
+</ul>
+
+<h2 id="general-how-to">General How-To</h2>
+
+<h3 id="how-to-get-the-chaos-logs-in-litmus">How to get the chaos logs in Litmus?</h3>
+
+<p>The chaos logs can be viewed in the following manner.</p>
+
+<p>To view the successful launch/removal of chaos resources upon engine creation, for identification of application under test (AUT) etc., view the chaos-operator logs:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;chaos-operator-(hash)-(hash)&gt;-runner -n litmus
+
+ 
+
+</code></pre>
+
+<p>To view lifecycle management logs of a given (or set of) chaos experiments, view the chaos-runner logs:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;chaosengine_name&gt;-runner -n &lt;application_namespace&gt;
+
+ 
+
+</code></pre>
+
+<p>To view the chaos logs itself (details of experiment chaos injection, application health checks et al), view the experiment pod logs:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;experiment_name_(hash)_(hash)&gt; -n &lt;application_namespace&gt;
+
+ 
+
+</code></pre>
+
+<h3 id="does-litmus-support-generation-of-events-during-chaos"><a href="https://docs.litmuschaos.io/docs/faq-general/#does-litmus-support-generation-of-events-during-chaos"></a>Does Litmus support generation of events during chaos?</h3>
+
+<p>The chaos-operator generates Kubernetes events to signify the creation of removal of chaos resources over the course of a chaos experiment, which can be obtained by running the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl describe chaosengine &lt;chaosengine-name&gt; -n &lt;namespace&gt;
+
+</code></pre>
+
+<h2 id="troubleshooting-litmus">Troubleshooting Litmus</h2>
+
+<p><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-litmus-chaos-operator-is-seen-to-be-in-crashloopbackOff-state-immediately-after-installation">The Litmus chaos operator is seen to be in CrashLoopBackOff state immediately after installation?</a></p>
+
+<p><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#nothing-happens-no-pods-created-when-the-chaosengine-resource-is-created">Nothing happens (no pods created) when the chaosengine resource is created?</a></p>
+
+<p><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-chaos-runner-pod-enters-completed-state-seconds-after-getting-created-no-experiment-jobs-are-created">The chaos-runner pod enters completed state seconds after getting created. No experiment jobs are created?</a></p>
+
+<p><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-experiment-pod-enters-completed-state-wo-the-desired-chaos-being-injected">The experiment pod enters completed state w/o the desired chaos being injected?</a></p>
+
+<hr>
+
+<h3 id="the-litmus-chaos-operator-is-seen-to-be-in-crashloopbackoff-state-immediately-after-installation"><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-litmus-chaos-operator-is-seen-to-be-in-crashloopbackoff-state-immediately-after-installation"></a>The Litmus chaos operator is seen to be in CrashLoopBackOff state immediately after installation?</h3>
+
+<p>Verify if the ChaosEngine custom resource definition (CRD) has been installed in the cluster. This can be verified with the following commands:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl get crds | grep chaos
+
+ 
+
+</code></pre>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl api-resources | grep chaos
+
+ 
+
+</code></pre>
+
+<p>If not created, install it from  <a href="https://github.com/litmuschaos/chaos-operator/blob/master/deploy/crds/chaosengine_crd.yaml">here</a></p>
+
+<h3 id="nothing-happens-no-pods-created-when-the-chaosengine-resource-is-created"><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#nothing-happens-no-pods-created-when-the-chaosengine-resource-is-created"></a>Nothing happens (no pods created) when the chaosengine resource is created?</h3>
+
+<p>If the ChaosEngine creation results in no action at all, check the logs of the chaos-operator pod using the following command to get more details (on failed creation of chaos resources). The below example uses litmus namespace, which is the default mode of installation. Please provide the namespace into which the operator has been deployed:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;chaos-operator-(hash)-(hash)&gt;-runner -n litmus
+
+ 
+
+</code></pre>
+
+<p>Some of the possible reasons include:</p>
+
+<ul>
+
+<li>
+
+<p>The annotationCheck is set to  <code>true</code>  in the ChaosEngine spec, but the application deployment (AUT) has not been annotated for chaos. If so, please add it using the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl annotate &lt;deploy-type&gt;/&lt;application_name&gt; litmuschaos.io/chaos="true"
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>The annotationCheck is set to  <code>true</code>  in the ChaosEngine spec and there are multiple chaos candidates that share the same label (as provided in the  <code>.spec.appinfo</code>  of the ChaosEngine) and are also annotated for chaos. If so, please provide a unique label for the AUT, or remove annotations on other applications with the same label. Litmus, by default, doesn’t allow selection of multiple applications. If this is a requirement, set the annotationCheck to  <code>false</code>.</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl annotate &lt;deploy-type&gt;/&lt;application_name&gt; litmuschaos.io/chaos-
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>The ChaosEngine has the  <code>.spec.engineState</code>  set to  <code>stop</code>, which causes the operator to refrain from creating chaos resources. While it is an unlikely scenario, it is possible to reuse a previously modified ChaosEngine manifest.</p>
+
+</li>
+
+<li>
+
+<p>Verify if the service account used by the Litmus chaos operator has enough permissions to launch pods/services (this is available by default if the manifests suggested by the docs have been used).</p>
+
+</li>
+
+</ul>
+
+<h3 id="the-chaos-runner-pod-enters-completed-state-seconds-after-getting-created.-no-experiment-jobs-are-created"><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-chaos-runner-pod-enters-completed-state-seconds-after-getting-created-no-experiment-jobs-are-created"></a>The chaos-runner pod enters completed state seconds after getting created. No experiment jobs are created?</h3>
+
+<p>If the chaos-runner enters completed state immediately post creation, i.e., the creation of experiment resources is unsuccessful, check the logs of the chaos-runner pod logs.</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;chaosengine_name&gt;-runner -n &lt;application_namespace&gt;
+
+ 
+
+</code></pre>
+
+<p>Some of the possible reasons may include:</p>
+
+<ul>
+
+<li>
+
+<p>The ChaosExperiment CR for the experiment (name) specified in the ChaosEngine .spec.experiments list is not installed. If so, please install the desired experiment from the  <a href="https://hub.litmuschaos.io/">chaoshub</a></p>
+
+</li>
+
+<li>
+
+<p>The dependent resources for the ChaosExperiment, such as configmap &amp; secret volumes (as specified in the ChaosExperiment CR or the ChaosEngine CR) may not be present in the cluster (or in the desired namespace). The runner pod doesn’t proceed with creation of experiment resources if the dependencies are unavailable.</p>
+
+</li>
+
+<li>
+
+<p>The chaosServiceAccount specified in the ChaosEngine CR doesn’t have sufficient permissions to create the experiment resources (For existing experiments, appropriate rbac manifests are already provided in chaos-charts/docs).</p>
+
+</li>
+
+</ul>
+
+<h3 id="the-experiment-pod-enters-completed-state-wo-the-desired-chaos-being-injected"><a href="https://docs.litmuschaos.io/docs/faq-troubleshooting/#the-experiment-pod-enters-completed-state-wo-the-desired-chaos-being-injected"></a>The experiment pod enters completed state w/o the desired chaos being injected?</h3>
+
+<p>If the experiment pod enters completed state immediately (or in a few seconds) after creation w/o injecting the desired chaos, check the logs of the chaos-experiment pod.</p>
+
+<pre class=" language-console"><code class="prism  language-console">kubectl logs -f &lt;experiment_name_(hash)_(hash)&gt; -n &lt;application_namespace&gt;
+
+ 
+
+</code></pre>
+
+<p>Some of the possible reasons may include:</p>
+
+<ul>
+
+<li>
+
+<p>The ChaosExperiment CR or the ChaosEngine CR doesn’t include mandatory ENVs (or consists of incorrect values/info) needed by the experiment. Note that each experiment (see docs) specifies a mandatory set of ENVs along with some optional ones, which are necessary for successful execution of the experiment.</p>
+
+</li>
+
+<li>
+
+<p>The chaosServiceAccount specified in the ChaosEngine CR doesn’t have sufficient permissions to create the experiment helper-resources (i.e., some experiments in turn create other K8s resources like jobs/daemonsets/deployments etc…, For existing experiments, appropriate rbac manifests are already provided in chaos-charts/docs).</p>
+
+</li>
+
+</ul>
+
+ 
+
+    </div>
+
+  </div>
+
+</body>
+
+ 
+
+</html>

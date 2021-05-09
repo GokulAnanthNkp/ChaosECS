@@ -1,0 +1,30 @@
+version: 1.0.0
+title: Delete a service in ECS
+description: Trying to delete a service in ECS
+steady-state-hypothesis:
+  title: Pod exists
+  probes:
+  - name: describe-cluster
+    tolerance:
+             type : jsonpath
+             path : $.clusters[0].runningTasksCount
+             expect: 1
+    provider:
+       arguments:
+         cluster: 'default'
+       func: describe_cluster
+       module: chaosaws.ecs.probes
+       type: python
+    type: probe
+method:
+ - name: delete-service
+   provider:
+     func: delete_service
+     module: chaosaws.ecs.actions
+     type: python
+     arguments:
+             cluster: 'default'
+             service: nginx-service
+   type: action
+   pauses:
+      after: 50

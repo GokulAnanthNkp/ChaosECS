@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+
+<html>
+
+ 
+
+<head>
+
+  <meta charset="utf-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ChaosEngineering_ChaosToolkit</title>
+
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+
+</head>
+
+ 
+
+<body class="stackedit">
+
+  <div class="stackedit__left">
+
+    <div class="stackedit__toc">
+
+     
+
+<ul>
+
+<li>
+
+<ul>
+
+<li><a href="#cloud-native-chaos-engineering-using-chaos-toolkit">Cloud Native Chaos Engineering Using Chaos Toolkit</a></li>
+
+<li><a href="#create-a-gke-cluster-on-gcp">Create a GKE Cluster on GCP</a></li>
+
+<li><a href="#create-kubernetes-cluster-in-gcpcloud-shell">Create Kubernetes cluster in GCP[Cloud Shell]</a></li>
+
+<li><a href="#chaos-toolkit--getting-started">Chaos Toolkit : Getting Started</a></li>
+
+<li><a href="#python-requirements">Python Requirements</a></li>
+
+<li><a href="#install-the-cli">Install the CLI</a></li>
+
+<li><a href="#install-extensions">Install Extensions</a></li>
+
+<li><a href="#the-various-sections-of-an-experiment">The Various Sections of an Experiment</a>
+
+<ul>
+
+<li></li>
+
+</ul>
+
+</li>
+
+<li><a href="#i-terminate-pod-experiment">i) Terminate Pod Experiment:</a></li>
+
+<li><a href="#more-chaos-experiments">More Chaos Experiments</a></li>
+
+<li><a href="#ii-kill-microservice-experiment">ii) Kill Microservice Experiment</a></li>
+
+<li><a href="#iii-remove-service-endpoint-experiment">iii) Remove Service Endpoint Experiment</a></li>
+
+<li><a href="#iv-node-drain-experiment">iv) Node Drain Experiment</a></li>
+
+<li><a href="#v-node-delete-experiment">v) Node Delete Experiment</a></li>
+
+</ul>
+
+</li>
+
+</ul>
+
+ 
+
+    </div>
+
+  </div>
+
+  <div class="stackedit__right">
+
+    <div class="stackedit__html">
+
+      <h2 id="cloud-native-chaos-engineering-using-chaos-toolkit">Cloud Native Chaos Engineering Using <a href="https://docs.chaostoolkit.org/">Chaos Toolkit</a></h2>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<ol>
+
+<li>You need a Google Cloud Platform account with billing enabled. Visit the <a href="https://console.cloud.google.com/">Google Developers Console</a> for more details.</li>
+
+<li>Sign up for a GCP Account via : <a href="https://cloud.google.com/free">https://cloud.google.com/free</a></li>
+
+<li>Install <code>gcloud</code> as necessary. <code>gcloud</code> can be installed as a part of the <a href="https://cloud.google.com/sdk/">Google Cloud SDK</a>.</li>
+
+<li>Enable the <a href="https://console.developers.google.com/apis/api/replicapool.googleapis.com/overview">Compute Engine Instance Group Manager API</a> in the <a href="https://console.developers.google.com/apis/library">Google Cloud developers console</a>.</li>
+
+<li>Make sure that gcloud is set to use the Google Cloud Platform project you want. You can check the current project using <code>gcloud config list project</code> and change it via <code>gcloud config set project &lt;project-id&gt;</code>.</li>
+
+<li>Make sure you have credentials for GCloud by running <code>gcloud auth login</code>.</li>
+
+<li>(Optional) In order to make API calls against GCE, you must also run <code>gcloud auth application-default login</code>.</li>
+
+<li>Make sure you can start up a GCE VM from the command line. At least make sure you can do the <a href="https://cloud.google.com/compute/docs/instances/#startinstancegcloud">Create an instance</a> part of the GCE Quickstart.</li>
+
+<li>Make sure you can SSH into the VM without interactive prompts. See the <a href="https://cloud.google.com/compute/docs/instances/#sshing">Log in to the instance</a> part of the GCE Quickstart.</li>
+
+</ol>
+
+<h2 id="create-a-gke-cluster-on-gcp">Create a GKE Cluster on GCP</h2>
+
+<p>To create a Kubernetes cluster, follow the instructions below:</p>
+
+<ul>
+
+<li>
+
+<p>Run the commands below. Remember to replace MY-KUBERNETES-CLUSTER with the name you chose for your cluster, and use a different subnetwork name if you don’t wish to use the default one.</p>
+
+<pre><code>gcloud container clusters create MY_KUBERNETES_CLUSTER \
+
+  --subnetwork default
+
+ 
+
+ 
+
+</code></pre>
+
+<blockquote>
+
+<p>NOTE: The number of nodes created by default in a Kubernetes cluster is 3. You can add additional arguments to set up some parameters such as a specific number of nodes or the disk size:</p>
+
+<pre><code>--num-nodes N
+
+--disk-size N
+
+ 
+
+</code></pre>
+
+</blockquote>
+
+<p>Once the cluster has been created you will see the information related to it:</p>
+
+</li>
+
+</ul>
+
+<pre><code>Creating cluster my-kubernetes-cluster in asia-south1-b... Cluster is being health-checked (master is healthy)...done.      
+
+Created [https://container.googleapis.com/v1/projects/wipro-sysassure-poc/zones/asia-south1-b/clusters/my-kubernetes-cluster].
+
+To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-south1-b/my-kubernetes-cluster?project=wipro-sysassure-poc
+
+kubeconfig entry generated for my-kubernetes-cluster.
+
+NAME          LOCATION       MASTER_VERSION  MASTER_IP      MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
+
+my-kubernetes-cluster  asia-south1-b  1.14.10-gke.17  35.200.184.57  n1-standard-1  1.14.10-gke.17  3          RUNNING
+
+ 
+
+</code></pre>
+
+<p>The new cluster will also appear in the <a href="https://console.cloud.google.com/kubernetes/">Container Engine -&gt; Container cluster</a> section within Google Cloud Platform:</p>
+
+<h3 id="create-kubernetes-cluster">Create Kubernetes cluster</h3>
+
+<ul>
+
+<li>
+
+<p>Configure the compute zone. Remember that this zone must match the one you indicated in Step 1. Replace the COMPUTE_ZONE placeholder with the correct value.</p>
+
+<pre><code>gcloud config set compute/zone  COMPUTE_ZONE
+
+ 
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>Get your cluster credentials:</p>
+
+<pre><code>gcloud container clusters get-credentials MY_KUBERNETES_CLUSTER
+
+ 
+
+ 
+
+</code></pre>
+
+</li>
+
+<li>
+
+<p>Authenticate your cluster:</p>
+
+<pre><code>gcloud auth application-default login
+
+ 
+
+ 
+
+</code></pre>
+
+</li>
+
+</ul>
+
+<h2 id="create-kubernetes-cluster-in-gcpcloud-shell">Create Kubernetes cluster in GCP[Cloud Shell]</h2>
+
+<p>To create a GKE cluster, execute the following commands</p>
+
+<pre class=" language-console"><code class="prism  language-console">gcloud auth login
+
+ 
+
+# Open https://console.cloud.google.com/cloud-resource-manager to create a new project if you don't have one already
+
+ 
+
+export PROJECT_ID=[...] # Replace [...] with the ID of the project
+
+ 
+
+gcloud container get-server-config \
+
+    --region us-east1
+
+ 
+
+export VERSION=[...] # Replace [...] with k8s version from the `validMasterVersions` section. Make sure that it is v1.14+.
+
+ 
+
+gcloud container clusters \
+
+    create chaos \
+
+    --project $PROJECT_ID \
+
+    --cluster-version $VERSION \
+
+    --region us-east1 \
+
+    --machine-type n1-standard-2 \
+
+    --enable-autoscaling \
+
+    --num-nodes 1 \
+
+    --max-nodes 3 \
+
+    --min-nodes 1
+
+ 
+
+kubectl create clusterrolebinding \
+
+    cluster-admin-binding \
+
+    --clusterrole cluster-admin \
+
+    --user $(gcloud config get-value account)
+
+</code></pre>
+
+<h3 id="install-the-kubectl-command-line-tool">Install The Kubectl Command-Line Tool</h3>
+
+<p>In order to start working on a Kubernetes cluster, it is necessary to install the Kubernetes command line (<em>kubectl</em>). Follow these steps to install the <em>kubectl</em> CLI:</p>
+
+<ul>
+
+<li>
+
+<p>Execute the following commands to install the <em>kubectl</em> CLI. OS_DISTRIBUTION is a placeholder for the binary distribution of <em>kubectl</em>, remember to replace it with the corresponding distribution for your Operating System (OS).</p>
+
+<pre><code>curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/OS_DISTRIBUTION/amd64/kubectl
+
+chmod +x ./kubectl
+
+sudo mv ./kubectl /usr/local/bin/kubectl   
+
+ 
+
+</code></pre>
+
+<blockquote>
+
+<p>TIP: Once the <em>kubectl</em> CLI is installed, you can obtain information about the current version with the <em>kubectl version</em> command.</p>
+
+</blockquote>
+
+<blockquote>
+
+<p>NOTE: You can also install <em>kubectl</em> by using the <em>sudo apt-get install kubectl</em> command.</p>
+
+</blockquote>
+
+</li>
+
+<li>
+
+<p>Check that <em>kubectl</em> is correctly installed and configured by running the <em>kubectl cluster-info</em> command:</p>
+
+<pre><code>kubectl cluster-info
+
+ 
+
+ 
+
+</code></pre>
+
+<blockquote>
+
+<p>NOTE: The <em>kubectl cluster-info</em> command shows the IP addresses of the Kubernetes node master and its services.</p>
+
+</blockquote>
+
+</li>
+
+</ul>
+
+<h3 id="get-source-code-for-sock-shop-micro-service-demo">Get source code for Sock-Shop Micro Service demo</h3>
+
+<p>Clone the repo to your local development machine</p>
+
+<pre class=" language-bash"><code class="prism  language-bash"><span class="token function">git</span> clone https://github.com/k8s-dev/microservices-demo.git
+
+<span class="token function">cd</span> microservices-demo
+
+ 
+
+</code></pre>
+
+<h3 id="deploy-sock-shop-micro-service-demo">Deploy Sock-Shop Micro Service demo</h3>
+
+<p>Follow the steps shown in this video to setup the microservice demo on GKE cluster<br>
+
+<a href="https://asciinema.org/a/HtWvfufEq8j10LbdqmEMVCyuf"><img src="https://asciinema.org/a/HtWvfufEq8j10LbdqmEMVCyuf.svg" alt="asciicast"></a></p>
+
+<p>Now cluster is ready with the sock-shop application hosted on GKE cluster. Access it with the loadbalancer IP address which is shown in the output.</p>
+
+<h2 id="chaos-toolkit--getting-started">Chaos Toolkit : Getting Started</h2>
+
+<p>The Chaos Toolkit aims to be the simplest and easiest way to explore building your own <a href="http://principlesofchaos.org/">Chaos Engineering</a> Experiments. It also aims to define a vendor and technology independent way of specifying Chaos Engineering experiments by providing an <a href="https://docs.chaostoolkit.org/reference/api/experiment/">Open API</a>.</p>
+
+<h2 id="python-requirements">Python Requirements<a href="https://docs.chaostoolkit.org/reference/usage/install/#python-requirements" title="Permanent link"></a></h2>
+
+<p>The  <a href="https://github.com/chaostoolkit/chaostoolkit">chaostoolkit CLI</a>  is implemented in Python 3 and this requires a working Python installation to run. It officially supports Python 3.5+. It has only been tested against  <a href="https://www.python.org/">CPython</a>.</p>
+
+<h3 id="install-python">Install Python<a href="https://docs.chaostoolkit.org/reference/usage/install/#install-python" title="Permanent link"></a></h3>
+
+<p>Install Python for your system:</p>
+
+<p>On MacOS X:</p>
+
+<p><code>$ brew install python3</code></p>
+
+<p>On Debian/Ubuntu:</p>
+
+<p><code>$ sudo apt-get install python3 python3-venv</code></p>
+
+<p>On CentOS:</p>
+
+<pre><code>$ sudo yum -y install https://centos7.iuscommunity.org/ius-release.rpm
+
+$ sudo yum -y install python35u
+
+</code></pre>
+
+<p>Notice, on CentOS, the Python 3.5 binary is named  <code>python3.5</code>  rather than  <code>python3</code>  as other systems.</p>
+
+<p>On Windows:</p>
+
+<p><a href="https://www.python.org/downloads/windows/">Download the latest binary installer</a>  from the Python website.</p>
+
+<h3 id="create-a-virtual-environment">Create a virtual environment<a href="https://docs.chaostoolkit.org/reference/usage/install/#create-a-virtual-environment" title="Permanent link"></a></h3>
+
+<p>Dependencies can be installed for your system via its package management but, more likely, you will want to install them yourself in a local virtual environment.</p>
+
+<p><code>$ python3 -m venv ~/.venvs/chaostk</code></p>
+
+<p>Make sure to always activate your virtual environment before using it:</p>
+
+<p><code>$ source ~/.venvs/chaostk/bin/activate</code></p>
+
+<h2 id="install-the-cli">Install the CLI<a href="https://docs.chaostoolkit.org/reference/usage/install/#install-the-cli" title="Permanent link"></a></h2>
+
+<p>Install  <code>chaostoolkit</code>  in the virtual environment as follows:</p>
+
+<p><code>(chaostk) $ pip install chaostoolkit</code></p>
+
+<p>You can verify the command was installed by running:</p>
+
+<p><code>(chaostk) $ chaos --version</code></p>
+
+<h2 id="install-extensions">Install Extensions<a href="https://docs.chaostoolkit.org/reference/usage/install/#install-extensions" title="Permanent link"></a></h2>
+
+<p>At this stage, you have installed the  <code>chaos</code>  command line and its core library. To fully enjoy the Chaos Toolkit, you will also want to install  <a href="https://github.com/search?utf8=%E2%9C%93&amp;q=topic%3Achaostoolkit-extension&amp;type=Repositories">extensions</a>  for the various facets of your journey into Chaos Engineering.</p>
+
+<p>Chaos Toolkit drivers extend the toolkit to be able to cause chaos and probe different types of systems.</p>
+
+<h3 id="install-kubernetes-extension">Install Kubernetes extension<a href="https://docs.chaostoolkit.org/drivers/kubernetes/#install" title="Permanent link"></a></h3>
+
+<p>To be used from your experiment, this package must be installed in the Python environment where  <a href="https://github.com/chaostoolkit/chaostoolkit">chaostoolkit</a>  already lives.</p>
+
+<p><code>$ pip install chaostoolkit-kubernetes</code></p>
+
+<h3 id="install-istio-extension">Install Istio Extension<a href="https://docs.chaostoolkit.org/drivers/istio/#install" title="Permanent link"></a></h3>
+
+<p>This package requires Python 3.5+</p>
+
+<p>To be used from your experiment, this package must be installed in the Python environment where  <a href="http://chaostoolkit.org/">chaostoolkit</a>  already lives.</p>
+
+<p><code>$ pip install -U chaostoolkit-istio</code></p>
+
+<h2 id="the-various-sections-of-an-experiment">The Various Sections of an Experiment<a href="https://docs.chaostoolkit.org/reference/tutorial/#the-various-sections-of-an-experiment" title="Permanent link"></a></h2>
+
+<p>Let’s now go through the experiment blocks.</p>
+
+<p>The steady state hypothesis declares the various probes that will be applied as part of the hypothesis check.</p>
+
+<p>The hypothesis is played twice. The first time before we do anything else to ensure the system is indeed in a normal state. The second time the hypothesis is applied is after the conditions were changed in the system, to validate it is still in a normal state.</p>
+
+<p>The method is the block which changes the conditions of our system/application.</p>
+
+<p>Finally, the rollback section (which is optional) tries to remediate to the changes we made.</p>
+
+<h4 id="different-kinds-of-activities">Different Kinds of Activities<a href="https://docs.chaostoolkit.org/reference/tutorial/#different-kinds-of-activities" title="Permanent link"></a></h4>
+
+<p>It is interesting to notice that the hypothesis uses probes while rollbacks are made of actions only. The method may use both. The reason is that the hypothesis is only about querying the system while rollbacks act on it. Finally, it is often useful to query the system while we change the conditions, for future analysis.</p>
+
+<p>Probes and Actions are activities that do not differ in the way they work, it’s only their goal that differs.</p>
+
+<p>You can create activities that make HTTP calls, execute processes or perform more complex operations through extensions (often implemented in Python).</p>
+
+<h4 id="tolerances-in-the-hypothesis">Tolerances in the Hypothesis<a href="https://docs.chaostoolkit.org/reference/tutorial/#tolerances-in-the-hypothesis" title="Permanent link"></a></h4>
+
+<p>Hypothesis probes expect a  <code>tolerance</code>  property which tells the Chaos Toolkit how to validate a certain aspect of the state. Richer tolerances can be created by using regex or jsonpath.</p>
+
+<p>To know more about <a href="https://docs.chaostoolkit.org/reference/api/experiment/#chaos-engineering-elements">Chaos Engineering elements</a>.</p>
+
+<h2 id="i-terminate-pod-experiment">i) Terminate Pod Experiment:</h2>
+
+<p>Terminate a pod gracefully. Select the appropriate pods by label and/or name patterns. Whenever a pattern is provided for the name, all pods retrieved will be filtered out if their name do not match the given pattern.</p>
+
+<p>If neither  <code>label_selector</code>  nor  <code>name_pattern</code>  are provided, all pods in the namespace will be selected for termination.</p>
+
+<p>In this first experiment, we will terminate a pod running within the cluster.<br>
+
+Save the following yaml file to <code>terminate_pod.yaml</code></p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">version</span><span class="token punctuation">:</span> 1.0.0
+
+<span class="token key atrule">title</span><span class="token punctuation">:</span> What happens if we terminate a Pod<span class="token punctuation">?</span>
+
+<span class="token key atrule">description</span><span class="token punctuation">:</span> If a Pod is terminated<span class="token punctuation">,</span> a new one should be created in its places.
+
+<span class="token key atrule">tags</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> k8s
+
+<span class="token punctuation">-</span> pod
+
+<span class="token key atrule">steady-state-hypothesis</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">title</span><span class="token punctuation">:</span> Pod exists
+
+  <span class="token key atrule">probes</span><span class="token punctuation">:</span>
+
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>exists
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> probe
+
+    <span class="token key atrule">tolerance</span><span class="token punctuation">:</span> <span class="token number">1</span>
+
+    <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+      <span class="token key atrule">func</span><span class="token punctuation">:</span> count_pods
+
+      <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.pod.probes
+
+      <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">label_selector</span><span class="token punctuation">:</span> name=front<span class="token punctuation">-</span>end
+
+        <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">method</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> terminate<span class="token punctuation">-</span>pod
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.pod.actions
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> terminate_pods
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">label_selector</span><span class="token punctuation">:</span> name=front<span class="token punctuation">-</span>end
+
+      <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+  <span class="token key atrule">pauses</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">after</span><span class="token punctuation">:</span> <span class="token number">10</span>
+
+ 
+
+</code></pre>
+
+<h3 id="run-chaos">Run Chaos</h3>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run terminate_pod.yaml
+
+</code></pre>
+
+<h3 id="result">Result</h3>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run terminate_pod.yaml
+
+[INFO] Validating the experiment's syntax
+
+[INFO] Experiment looks valid
+
+[INFO] Running experiment: What happens if we terminate a Pod?
+
+[INFO] Steady state hypothesis: Pod exists
+
+[INFO] Probe: pod-exists
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Action: terminate-pod
+
+[INFO] Pausing after activity for 10s...
+
+[INFO] Steady state hypothesis: Pod exists
+
+[INFO] Probe: pod-exists
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Let's rollback...
+
+[INFO] No declared rollbacks, let's move on.
+
+[INFO] Experiment ended with status: completed
+
+</code></pre>
+
+<h3 id="observe-result">Observe result</h3>
+
+<ul>
+
+<li>Experiment validates the syntax and runs it.</li>
+
+<li>Checks the Steady state hypothesis<br>
+
+– Checks the number of pods with <code>selector</code>:<code>name=front-end</code></li>
+
+<li>Runs the Action to terminate pod</li>
+
+<li>Steady state hypothesis is checked once again</li>
+
+<li>Experiment ends with status: <code>completed</code></li>
+
+</ul>
+
+<p>Observe that a pod <code>front-end</code> in the namespace <code>sock_shop</code> is getting terminated and a new pod with same name is getting created and starts running.</p>
+
+<pre><code>$ kubectl get pods -n sock-shop
+
+NAME                            READY   STATUS        RESTARTS   AGE
+
+carts-56c6fb966b-ws8jx          1/1     Running       0          105s
+
+carts-db-5678cc578f-wn87k       1/1     Running       0          105s
+
+catalogue-644549d46f-c2zcw      1/1     Running       0          104s
+
+catalogue-db-6ddc796b66-g6g5p   1/1     Running       0          104s
+
+front-end-5594987df6-pplm6      1/1     Running       0          14s
+
+front-end-5594987df6-wrx9k      1/1     Terminating   0          103s
+
+orders-749cdc8c9-d74mq          1/1     Running       0          102s
+
+orders-db-5cfc68c4cf-jjkwz      1/1     Running       0          103s
+
+payment-54f55b96b9-5x6zb        1/1     Running       0          102s
+
+queue-master-6fff667867-gr7ms   1/1     Running       0          101s
+
+rabbitmq-bdfd84d55-ptq72        1/1     Running       0          101s
+
+shipping-78794fdb4f-cqmw5       1/1     Running       0          100s
+
+user-77cff48476-d267z           1/1     Running       0          100s
+
+user-db-99685d75b-jws92         1/1     Running       0          100s
+
+</code></pre>
+
+<pre><code>$ kubectl get pods -n sock-shop
+
+NAME                            READY   STATUS    RESTARTS   AGE
+
+carts-56c6fb966b-ws8jx          1/1     Running   0          2m15s
+
+carts-db-5678cc578f-wn87k       1/1     Running   0          2m15s
+
+catalogue-644549d46f-c2zcw      1/1     Running   0          2m14s
+
+catalogue-db-6ddc796b66-g6g5p   1/1     Running   0          2m14s
+
+front-end-5594987df6-pplm6      1/1     Running   0          44s
+
+orders-749cdc8c9-d74mq          1/1     Running   0          2m12s
+
+orders-db-5cfc68c4cf-jjkwz      1/1     Running   0          2m13s
+
+payment-54f55b96b9-5x6zb        1/1     Running   0          2m12s
+
+queue-master-6fff667867-gr7ms   1/1     Running   0          2m11s
+
+rabbitmq-bdfd84d55-ptq72        1/1     Running   0          2m11s
+
+shipping-78794fdb4f-cqmw5       1/1     Running   0          2m10s
+
+user-77cff48476-d267z           1/1     Running   0          2m10s
+
+user-db-99685d75b-jws92         1/1     Running   0          2m10s
+
+</code></pre>
+
+<h2 id="more-chaos-experiments">More Chaos Experiments</h2>
+
+<h2 id="ii-kill-microservice-experiment">ii) Kill Microservice Experiment</h2>
+
+<p>Kill a microservice by  <code>name</code>  in the namespace  <code>ns</code>.</p>
+
+<p>The microservice is killed by deleting the deployment for it without a graceful period to trigger an abrupt termination.</p>
+
+<p>The selected resources are matched by the given  <code>label_selector</code>.</p>
+
+<p>Save the following yaml file to <code>kill-microservice.yaml</code></p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">version</span><span class="token punctuation">:</span> 1.0.0
+
+<span class="token key atrule">title</span><span class="token punctuation">:</span> What happens if we kill a microservice/deployment<span class="token punctuation">?</span>
+
+<span class="token key atrule">description</span><span class="token punctuation">:</span> If a microservice/deployment is terminated<span class="token punctuation">,</span> a new one should be created in its places.
+
+<span class="token comment"># The microservice is killed by deleting the deployment for it without a graceful period to trigger an abrupt termination.</span>
+
+<span class="token comment"># Kill a microservice by name in the namespace ns.</span>
+
+<span class="token key atrule">tags</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> k8s
+
+<span class="token punctuation">-</span> pod
+
+<span class="token punctuation">-</span> deployment
+
+<span class="token key atrule">steady-state-hypothesis</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">title</span><span class="token punctuation">:</span> Pod exists
+
+  <span class="token key atrule">probes</span><span class="token punctuation">:</span>
+
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>exists
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> probe
+
+    <span class="token key atrule">tolerance</span><span class="token punctuation">:</span> <span class="token number">1</span>
+
+    <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+      <span class="token key atrule">func</span><span class="token punctuation">:</span> count_pods
+
+      <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.pod.probes
+
+      <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">label_selector</span><span class="token punctuation">:</span> name=front<span class="token punctuation">-</span>end
+
+        <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">method</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> kill<span class="token punctuation">-</span>microservice
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+       <span class="token key atrule">name</span><span class="token punctuation">:</span> front<span class="token punctuation">-</span>end
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> kill_microservice
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.actions
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">pauses</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">after</span><span class="token punctuation">:</span> <span class="token number">40</span>
+
+</code></pre>
+
+<h3 id="run-chaos-1">Run Chaos</h3>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run kill-microservice.yaml
+
+</code></pre>
+
+<h3 id="result-1">Result</h3>
+
+<pre><code>$ chaos run kill-microservice.yaml
+
+[INFO] Validating the experiment's syntax
+
+[INFO] Experiment looks valid
+
+[INFO] Running experiment: What happens if we kill a microservice/deployment?
+
+[INFO] Steady state hypothesis: Pod exists
+
+[INFO] Probe: pod-exists
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Action: kill-microservice
+
+[INFO] Pausing after activity for 40s...
+
+[INFO] Steady state hypothesis: Pod exists
+
+[INFO] Probe: pod-exists
+
+[CRITICAL] Steady state probe 'pod-exists' is not in the given tolerance so failing this experiment
+
+[INFO] Let's rollback...
+
+[INFO] No declared rollbacks, let's move on.
+
+[INFO] Experiment ended with status: deviated
+
+[INFO] The steady-state has deviated, a weakness may have been discovered
+
+</code></pre>
+
+<h3 id="observe-result-1">Observe result</h3>
+
+<ul>
+
+<li>Experiment validates the syntax and runs it.</li>
+
+<li>Checks the Steady state hypothesis<br>
+
+– Checks the number of pods with  <code>selector</code>:<code>name=front-end</code></li>
+
+<li>Runs the Action to kill microservice with <code>name</code>:<code>front-end</code>.</li>
+
+<li>Steady state hypothesis is checked once again<br>
+
+–But the steady state fails as the pod <code>front-end</code> got terminated as its deployment <code>front-end</code> got deleted.</li>
+
+<li>Experiment ends with status:  <code>deviated</code></li>
+
+</ul>
+
+<p>Observe that the deployment  <code>front-end</code>  in the namespace  <code>sock_shop</code>  is present before the experiment.</p>
+
+<pre><code>$ kubectl get deployment -n sock-shop
+
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+
+carts          1/1     1            1           83m
+
+carts-db       1/1     1            1           83m
+
+catalogue      1/1     1            1           83m
+
+catalogue-db   1/1     1            1           83m
+
+front-end      1/1     1            1           20s
+
+orders         1/1     1            1           83m
+
+orders-db      1/1     1            1           83m
+
+payment        1/1     1            1           83m
+
+queue-master   1/1     1            1           83m
+
+rabbitmq       1/1     1            1           83m
+
+shipping       1/1     1            1           83m
+
+user           1/1     1            1           83m
+
+user-db        1/1     1            1           83m
+
+</code></pre>
+
+<p>After running the experiment, the deployment <code>front-end</code> was terminated.</p>
+
+<pre><code>$ kubectl get deployment -n sock-shop
+
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+
+carts          1/1     1            1           84m
+
+carts-db       1/1     1            1           84m
+
+catalogue      1/1     1            1           84m
+
+catalogue-db   1/1     1            1           84m
+
+orders         1/1     1            1           84m
+
+orders-db      1/1     1            1           84m
+
+payment        1/1     1            1           84m
+
+queue-master   1/1     1            1           84m
+
+rabbitmq       1/1     1            1           84m
+
+shipping       1/1     1            1           84m
+
+user           1/1     1            1           84m
+
+user-db        1/1     1            1           84m
+
+</code></pre>
+
+<hr>
+
+<h2 id="iii-remove-service-endpoint-experiment">iii) Remove Service Endpoint Experiment</h2>
+
+<p>Remove the service endpoint that sits in front of microservices (pods).<br>
+
+Set the environment variables <code>HOST</code> and <code>SVC_PATH</code>.</p>
+
+<p>Save the following yaml file to <code>remove-service-endpoint.yaml</code></p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">version</span><span class="token punctuation">:</span> 1.0.0
+
+<span class="token key atrule">title</span><span class="token punctuation">:</span> What happens if we terminate a service of the application<span class="token punctuation">?</span>
+
+<span class="token key atrule">description</span><span class="token punctuation">:</span> If a service of the application is terminated<span class="token punctuation">,</span> the applications as a whole should still be operational.
+
+<span class="token key atrule">tags</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> k8s
+
+<span class="token punctuation">-</span> service
+
+<span class="token punctuation">-</span> http
+
+<span class="token key atrule">configuration</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">ingress_host</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> env
+
+      <span class="token key atrule">key</span><span class="token punctuation">:</span> HOST
+
+  <span class="token key atrule">svc_path</span><span class="token punctuation">:</span>
+
+       <span class="token key atrule">type</span><span class="token punctuation">:</span> env
+
+       <span class="token key atrule">key</span><span class="token punctuation">:</span> SVC_PATH
+
+<span class="token key atrule">steady-state-hypothesis</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">title</span><span class="token punctuation">:</span> The app is healthy
+
+  <span class="token key atrule">probes</span><span class="token punctuation">:</span>
+
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> app<span class="token punctuation">-</span>responds<span class="token punctuation">-</span>to<span class="token punctuation">-</span>requests
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> probe
+
+    <span class="token key atrule">tolerance</span><span class="token punctuation">:</span> <span class="token number">200</span>
+
+    <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> http
+
+      <span class="token key atrule">timeout</span><span class="token punctuation">:</span> <span class="token number">3</span>
+
+      <span class="token key atrule">verify_tls</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+
+      <span class="token key atrule">url</span><span class="token punctuation">:</span> http<span class="token punctuation">:</span>//$<span class="token punctuation">{</span>ingress_host<span class="token punctuation">}</span>
+
+<span class="token key atrule">method</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> remove<span class="token punctuation">-</span>service<span class="token punctuation">-</span>endpoint
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> <span class="token string">'front-end'</span>
+
+      <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> remove_service_endpoint
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.actions
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">pauses</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">after</span><span class="token punctuation">:</span> <span class="token number">5</span>
+
+<span class="token key atrule">rollbacks</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> create<span class="token punctuation">-</span>service<span class="token punctuation">-</span>endpoint
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span> <span class="token comment">#specific path to the front-end service yaml file</span>
+
+      <span class="token key atrule">spec_path</span><span class="token punctuation">:</span> $<span class="token punctuation">{</span>svc_path<span class="token punctuation">}</span>
+
+      <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> create_service_endpoint
+
+   <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.service.actions
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+</code></pre>
+
+<h3 id="run-chaos-2">Run Chaos</h3>
+
+<p>Before running the experiment, the <code>EXTERNAL-IP</code> of the service <code>front-end</code> needs to be set as <em>HOST</em> variable and the path to <code>front-end</code> service creation yaml file needs to be set as <em>SVC_PATH</em> variable.</p>
+
+<pre><code>Example:
+
+$ export HOST=35.243.220.217
+
+$ export SVC_PATH=/home/user/front-end-svc.yaml
+
+</code></pre>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run remove-service-endpoint.yaml
+
+</code></pre>
+
+<h3 id="result-2">Result</h3>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run remove-service-endpoint.yaml
+
+[INFO] Validating the experiment's syntax
+
+[INFO] Experiment looks valid
+
+[INFO] Running experiment: What happens if we terminate a service of the application?
+
+[INFO] Steady state hypothesis: The app is healthy
+
+[INFO] Probe: app-responds-to-requests
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Action: remove-service-endpoint
+
+[INFO] Pausing after activity for 30s...
+
+[INFO] Steady state hypothesis: The app is healthy
+
+[INFO] Probe: app-responds-to-requests
+
+[ERROR]   =&gt; failed: failed to connect to http://35.243.220.217: HTTPConnectionPool(host='35.243.220.217', port=80): Max retries exceeded with url: / (Caused by ConnectTimeoutError(&lt;urllib3.connection.HTTPConnection object at 0x7fefa3dc9518&gt;, 'Connection to 35.243.220.217 timed out. (connect timeout=3)'))
+
+[WARNING] Probe terminated unexpectedly, so its tolerance could not be validated
+
+[CRITICAL] Steady state probe 'app-responds-to-requests' is not in the given tolerance so failing this experiment
+
+[INFO] Let's rollback...
+
+[INFO] Rollback: create-service-endpoint
+
+[INFO] Action: create-service-endpoint
+
+[INFO] Experiment ended with status: deviated
+
+[INFO] The steady-state has deviated, a weakness may have been discovered
+
+</code></pre>
+
+<h3 id="observe-result-2">Observe result</h3>
+
+<ul>
+
+<li>Experiment validates the syntax and runs it.</li>
+
+<li>Checks the Steady state hypothesis<br>
+
+– It pings the service endpoint over HTTP and receives the response code and checks it with its <code>tolerence</code></li>
+
+<li>Runs the Action to remove service endpoint with <code>name</code>:<code>front-end</code>.</li>
+
+<li>Steady state hypothesis is checked once again<br>
+
+–But the steady state fails as the service <code>front-end</code> got terminated and cannot reach the endpoint over HTTP.</li>
+
+<li>Rollback is done to create the service endpoint running the service file.</li>
+
+<li>Experiment ends with status:  <code>deviated</code></li>
+
+</ul>
+
+<p>Observe that the service <code>front-end</code>  in the namespace  <code>sock_shop</code>  is present before the experiment.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl get svc -n sock-shop
+
+NAME           TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)        AGE
+
+carts          ClusterIP      10.11.241.80    &lt;none&gt;           80/TCP         7m26s
+
+carts-db       ClusterIP      10.11.242.44    &lt;none&gt;           27017/TCP      7m27s
+
+catalogue      ClusterIP      10.11.251.126   &lt;none&gt;           80/TCP         7m23s
+
+catalogue-db   ClusterIP      10.11.248.249   &lt;none&gt;           3306/TCP       7m24s
+
+front-end      LoadBalancer   10.11.251.53    35.243.220.217   80:30001/TCP   51s
+
+orders         ClusterIP      10.11.245.74    &lt;none&gt;           80/TCP         7m18s
+
+orders-db      ClusterIP      10.11.254.141   &lt;none&gt;           27017/TCP      7m20s
+
+payment        ClusterIP      10.11.251.190   &lt;none&gt;           80/TCP         7m17s
+
+queue-master   ClusterIP      10.11.248.218   &lt;none&gt;           80/TCP         7m15s
+
+rabbitmq       ClusterIP      10.11.255.126   &lt;none&gt;           5672/TCP       7m14s
+
+shipping       ClusterIP      10.11.254.53    &lt;none&gt;           80/TCP         7m12s
+
+user           ClusterIP      10.11.241.112   &lt;none&gt;           80/TCP         7m9s
+
+user-db        ClusterIP      10.11.253.184   &lt;none&gt;           27017/TCP      7m11s
+
+</code></pre>
+
+<p>While running the experiment, the service <code>front-end</code> got removed.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl get svc -n sock-shop
+
+NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)     AGE
+
+carts          ClusterIP   10.11.241.80    &lt;none&gt;        80/TCP      7m37s
+
+carts-db       ClusterIP   10.11.242.44    &lt;none&gt;        27017/TCP   7m38s
+
+catalogue      ClusterIP   10.11.251.126   &lt;none&gt;        80/TCP      7m34s
+
+catalogue-db   ClusterIP   10.11.248.249   &lt;none&gt;        3306/TCP    7m35s
+
+orders         ClusterIP   10.11.245.74    &lt;none&gt;        80/TCP      7m39s
+
+orders-db      ClusterIP   10.11.254.141   &lt;none&gt;        27017/TCP   7m31s
+
+payment        ClusterIP   10.11.251.190   &lt;none&gt;        80/TCP      7m38s
+
+queue-master   ClusterIP   10.11.248.218   &lt;none&gt;        80/TCP      7m36s
+
+rabbitmq       ClusterIP   10.11.255.126   &lt;none&gt;        5672/TCP    7m35s
+
+shipping       ClusterIP   10.11.254.53    &lt;none&gt;        80/TCP      7m33s
+
+user           ClusterIP   10.11.241.112   &lt;none&gt;        80/TCP      7m30s
+
+user-db        ClusterIP   10.11.253.184   &lt;none&gt;        27017/TCP   7m32s
+
+</code></pre>
+
+<p>Once rollback is done, the service <code>front-end</code> is getting created. The LoadBalancer is getting created.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl get svc -n sock-shop
+
+NAME           TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+
+carts          ClusterIP      10.11.241.80    &lt;none&gt;        80/TCP         8m6s
+
+carts-db       ClusterIP      10.11.242.44    &lt;none&gt;        27017/TCP      8m7s
+
+catalogue      ClusterIP      10.11.251.126   &lt;none&gt;        80/TCP         8m3s
+
+catalogue-db   ClusterIP      10.11.248.249   &lt;none&gt;        3306/TCP       8m4s
+
+front-end      LoadBalancer   10.11.251.53    &lt;pending&gt;     80:30001/TCP   31s
+
+orders         ClusterIP      10.11.245.74    &lt;none&gt;        80/TCP         1m58s
+
+orders-db      ClusterIP      10.11.254.141   &lt;none&gt;        27017/TCP      8m
+
+payment        ClusterIP      10.11.251.190   &lt;none&gt;        80/TCP         7m57s
+
+queue-master   ClusterIP      10.11.248.218   &lt;none&gt;        80/TCP         7m55s
+
+rabbitmq       ClusterIP      10.11.255.126   &lt;none&gt;        5672/TCP       7m54s
+
+shipping       ClusterIP      10.11.254.53    &lt;none&gt;        80/TCP         7m52s
+
+user           ClusterIP      10.11.241.112   &lt;none&gt;        80/TCP         7m49s
+
+user-db        ClusterIP      10.11.253.184   &lt;none&gt;        27017/TCP      7m51s
+
+</code></pre>
+
+<hr>
+
+<h2 id="iv-node-drain-experiment">iv) Node Drain Experiment</h2>
+
+<p>Drain nodes matching the given label or name, so that no pods are scheduled on them any longer and running pods are evicted.</p>
+
+<p>It does a similar job to  <code>kubectl drain --ignore-daemonsets</code>  or  <code>kubectl drain --delete-local-data --ignore-daemonsets</code>  if  <code>delete_pods_with_local_storage</code>  is set to  <code>True</code>. There is no equivalent to the  <code>kubectl drain --force</code>  flag.</p>
+
+<p>You probably want to call  <code>uncordon</code>  from in your experiment’s rollbacks.</p>
+
+<p>Save the following yaml file to <code>node-drain.yaml</code></p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">version</span><span class="token punctuation">:</span> 1.0.0
+
+<span class="token key atrule">title</span><span class="token punctuation">:</span> What happens if we drain a node
+
+<span class="token key atrule">description</span><span class="token punctuation">:</span> All the instances are distributed among healthy nodes and the applications are healthy
+
+<span class="token key atrule">tags</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> k8s
+
+<span class="token punctuation">-</span> deployment
+
+<span class="token punctuation">-</span> node
+
+<span class="token key atrule">configuration</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">node_name</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> env
+
+      <span class="token key atrule">key</span><span class="token punctuation">:</span> NODE_NAME
+
+<span class="token key atrule">steady-state-hypothesis</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">title</span><span class="token punctuation">:</span> Nodes are indestructible
+
+  <span class="token key atrule">probes</span><span class="token punctuation">:</span>
+
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> all<span class="token punctuation">-</span>apps<span class="token punctuation">-</span>are<span class="token punctuation">-</span>healthy
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> probe
+
+    <span class="token key atrule">tolerance</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+
+    <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+      <span class="token key atrule">func</span><span class="token punctuation">:</span> all_microservices_healthy
+
+      <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.probes
+
+      <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">method</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> drain<span class="token punctuation">-</span>node
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> drain_nodes
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.node.actions
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> $<span class="token punctuation">{</span>node_name<span class="token punctuation">}</span>
+
+      <span class="token key atrule">delete_pods_with_local_storage</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+
+  <span class="token key atrule">pauses</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">after</span><span class="token punctuation">:</span> <span class="token number">10</span>
+
+<span class="token key atrule">rollbacks</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> uncordon<span class="token punctuation">-</span>node
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> uncordon_node
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.node.actions
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> $<span class="token punctuation">{</span>node_name<span class="token punctuation">}</span>
+
+</code></pre>
+
+<h3 id="run-chaos-3">Run Chaos</h3>
+
+<p>Before running the experiment, the <code>NAME</code> of the node needs to be set as <em>NODE_NAME</em> variable.</p>
+
+<pre><code>Example:
+
+$ export NODE_NAME=gke-chaos-default-pool-4945bcf6-zkqg
+
+</code></pre>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run node-drain.yaml
+
+</code></pre>
+
+<h3 id="result-3">Result</h3>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run node-drain.yml
+
+[INFO] Validating the experiment's syntax
+
+[INFO] Experiment looks valid
+
+[INFO] Running experiment: What happens if we drain a node
+
+[INFO] Steady state hypothesis: Nodes are indestructible
+
+[INFO] Probe: all-apps-are-healthy
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Action: drain-node
+
+[INFO] Pausing after activity for 10s...
+
+[INFO] Steady state hypothesis: Nodes are indestructible
+
+[INFO] Probe: all-apps-are-healthy
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Let's rollback...
+
+[INFO] Rollback: uncordon-node
+
+[INFO] Action: uncordon-node
+
+[INFO] Experiment ended with status: completed
+
+</code></pre>
+
+<h3 id="observe-result-3">Observe result</h3>
+
+<ul>
+
+<li>Experiment validates the syntax and runs it.</li>
+
+<li>Checks the Steady state hypothesis<br>
+
+– It checks the health of the running microservices.</li>
+
+<li>Runs the Action to drain a node with given <code>node_name</code>.</li>
+
+<li>Steady state hypothesis is checked once again<br>
+
+–The health of all the microservices are fine.</li>
+
+<li>Rollback is done to <code>uncordon</code> the node and make it <code>Ready</code>.</li>
+
+<li>Experiment ends with status:  <code>completed</code></li>
+
+</ul>
+
+<p>Observe that the node <code>gke-chaos-default-pool-4945bcf6-zkqg</code>  is in <code>SchedulingDisabled</code> state after the experiment.</p>
+
+<pre class=" language-console"><code class="prism  language-console">NAME                                   STATUS                     ROLES    AGE     VERSION
+
+gke-chaos-default-pool-4945bcf6-zkqg   Ready,SchedulingDisabled   &lt;none&gt;   6h36m   v1.15.11-gke.13
+
+gke-chaos-default-pool-90fc0fe0-1v9w   Ready                      &lt;none&gt;   6h36m   v1.15.11-gke.13
+
+gke-chaos-default-pool-baf341ff-rh9q   Ready                      &lt;none&gt;   6h36m   v1.15.11-gke.13
+
+</code></pre>
+
+<p>After rollback, the node <code>gke-chaos-default-pool-4945bcf6-zkqg</code> is in <code>Ready</code> state.</p>
+
+<pre class=" language-console"><code class="prism  language-console">NAME                                   STATUS   ROLES    AGE     VERSION
+
+gke-chaos-default-pool-4945bcf6-zkqg   Ready    &lt;none&gt;   6h37m   v1.15.11-gke.13
+
+gke-chaos-default-pool-90fc0fe0-1v9w   Ready    &lt;none&gt;   6h37m   v1.15.11-gke.13
+
+gke-chaos-default-pool-baf341ff-rh9q   Ready    &lt;none&gt;   6h37m   v1.15.11-gke.13
+
+</code></pre>
+
+<hr>
+
+<h2 id="v-node-delete-experiment">v) Node Delete Experiment</h2>
+
+<p>Delete nodes gracefully. Select the appropriate nodes by label.</p>
+
+<p>Nodes are not drained beforehand so we can see how cluster behaves. Nodes cannot be restarted, they are really deleted. Please be careful when using this action.</p>
+
+<p>On certain cloud providers, you also need to delete the underneath VM instance as well afterwards. This is the case on GCE for instance.</p>
+
+<p>Save the following yaml file to <code>node-delete.yaml</code></p>
+
+<pre class=" language-yaml"><code class="prism  language-yaml"><span class="token key atrule">version</span><span class="token punctuation">:</span> 1.0.0
+
+<span class="token key atrule">title</span><span class="token punctuation">:</span> What happens if we delete a node
+
+<span class="token key atrule">description</span><span class="token punctuation">:</span> All the instances are distributed among healthy nodes and the applications are healthy
+
+<span class="token key atrule">tags</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> k8s
+
+<span class="token punctuation">-</span> deployment
+
+<span class="token punctuation">-</span> node
+
+<span class="token key atrule">configuration</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">node_label</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> env
+
+      <span class="token key atrule">key</span><span class="token punctuation">:</span> NODE_LABEL
+
+<span class="token key atrule">steady-state-hypothesis</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">title</span><span class="token punctuation">:</span> Nodes are indestructible
+
+  <span class="token key atrule">probes</span><span class="token punctuation">:</span>
+
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> all<span class="token punctuation">-</span>apps<span class="token punctuation">-</span>are<span class="token punctuation">-</span>healthy
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> probe
+
+    <span class="token key atrule">tolerance</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+
+    <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+      <span class="token key atrule">func</span><span class="token punctuation">:</span> all_microservices_healthy
+
+      <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.probes
+
+      <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+        <span class="token key atrule">ns</span><span class="token punctuation">:</span> sock<span class="token punctuation">-</span>shop
+
+<span class="token key atrule">method</span><span class="token punctuation">:</span>
+
+<span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> action
+
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> delete<span class="token punctuation">-</span>node
+
+  <span class="token key atrule">provider</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> python
+
+    <span class="token key atrule">func</span><span class="token punctuation">:</span> delete_nodes
+
+    <span class="token key atrule">module</span><span class="token punctuation">:</span> chaosk8s.node.actions
+
+    <span class="token key atrule">arguments</span><span class="token punctuation">:</span>
+
+      <span class="token key atrule">label_selector</span><span class="token punctuation">:</span> $<span class="token punctuation">{</span>node_label<span class="token punctuation">}</span>
+
+      <span class="token key atrule">count</span><span class="token punctuation">:</span> <span class="token number">1</span>
+
+  <span class="token key atrule">pauses</span><span class="token punctuation">:</span>
+
+    <span class="token key atrule">after</span><span class="token punctuation">:</span> <span class="token number">10</span>
+
+</code></pre>
+
+<h3 id="run-chaos-4">Run Chaos</h3>
+
+<p>Before running the experiment, one of the label of the node needs to be set as <em>NODE_LABEL</em> variable.</p>
+
+<pre><code>Example:
+
+$ export NODE_LABEL=kubernetes.io/hostname=gke-chaos-default-pool-4945bcf6-zkqg
+
+</code></pre>
+
+<p>Find the <code>labels</code> of node by running the command <code>kubectl describe nodes</code>.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl describe nodes
+
+Name:               gke-chaos-default-pool-4945bcf6-zkqg
+
+Roles:              &lt;none&gt;
+
+Labels:             beta.kubernetes.io/arch=amd64
+
+                    beta.kubernetes.io/fluentd-ds-ready=true
+
+                    beta.kubernetes.io/instance-type=n1-standard-2
+
+                    beta.kubernetes.io/os=linux
+
+                    cloud.google.com/gke-nodepool=default-pool
+
+                    cloud.google.com/gke-os-distribution=cos
+
+                    failure-domain.beta.kubernetes.io/region=us-east1
+
+                    failure-domain.beta.kubernetes.io/zone=us-east1-d
+
+                    kubernetes.io/arch=amd64
+
+                    kubernetes.io/hostname=gke-chaos-default-pool-4945bcf6-zkqg
+
+                    kubernetes.io/os=linux
+
+............        .............
+
+............        .............        
+
+</code></pre>
+
+<p>Execute the experiment by the following command:</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run node-drain.yaml
+
+</code></pre>
+
+<h3 id="result-4">Result</h3>
+
+<pre class=" language-console"><code class="prism  language-console">$ chaos run node-delete.yaml
+
+[INFO] Validating the experiment's syntax
+
+[INFO] Experiment looks valid
+
+[INFO] Running experiment: What happens if we delete a node
+
+[INFO] Steady state hypothesis: Nodes are indestructible
+
+[INFO] Probe: all-apps-are-healthy
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Action: delete-node
+
+[INFO] Pausing after activity for 10s...
+
+[INFO] Steady state hypothesis: Nodes are indestructible
+
+[INFO] Probe: all-apps-are-healthy
+
+[INFO] Steady state hypothesis is met!
+
+[INFO] Let's rollback...
+
+[INFO] No declared rollbacks, let's move on.
+
+[INFO] Experiment ended with status: completed
+
+</code></pre>
+
+<h3 id="observe-result-4">Observe result</h3>
+
+<ul>
+
+<li>Experiment validates the syntax and runs it.</li>
+
+<li>Checks the Steady state hypothesis<br>
+
+– It checks the health of the running microservices.</li>
+
+<li>Runs the Action to delete the node with given <code>node_label</code>.</li>
+
+<li>Steady state hypothesis is checked once again<br>
+
+–The health of all the microservices are fine.</li>
+
+<li>Experiment ends with status:  <code>completed</code></li>
+
+</ul>
+
+<p>Observe that the node <code>gke-chaos-default-pool-4945bcf6-zkqg</code>  is present before the experiment.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl get nodes
+
+NAME                                   STATUS   ROLES    AGE     VERSION
+
+gke-chaos-default-pool-4945bcf6-zkqg   Ready    &lt;none&gt;   7h25m   v1.15.11-gke.13
+
+gke-chaos-default-pool-90fc0fe0-1v9w   Ready    &lt;none&gt;   7h25m   v1.15.11-gke.13
+
+gke-chaos-default-pool-baf341ff-rh9q   Ready    &lt;none&gt;   7h25m   v1.15.11-gke.13
+
+</code></pre>
+
+<p>After the experiment, the node has been deleted.</p>
+
+<pre class=" language-console"><code class="prism  language-console">$ kubectl get nodes
+
+NAME                                   STATUS   ROLES    AGE     VERSION
+
+gke-chaos-default-pool-90fc0fe0-1v9w   Ready    &lt;none&gt;   7h27m   v1.15.11-gke.13
+
+gke-chaos-default-pool-baf341ff-rh9q   Ready    &lt;none&gt;   7h27m   v1.15.11-gke.13
+
+</code></pre>
+
+ 
+
+    </div>
+
+  </div>
+
+</body>
+
+ 
+
+</html>

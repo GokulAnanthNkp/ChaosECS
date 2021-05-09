@@ -1,0 +1,30 @@
+version: 1.0.0
+title: Stop random task in ECS
+description: Describing tasks and trying to stop random task
+steady-state-hypothesis:
+  title: Pod exists
+  probes:
+  - name: describe-tasks
+    tolerance:
+             type : jsonpath
+             path : $.tasks[0].healthStatus
+             expect : UNKNOWN
+    provider:
+       arguments:
+         cluster: 'default'
+       func: describe_tasks
+       module: chaosaws.ecs.probes
+       type: python
+    type: probe
+method:
+  - name: stop-random-tasks
+    provider:
+      arguments:
+        cluster: 'default'
+        task_count : 1
+      func: stop_random_tasks
+      module: chaosaws.ecs.actions
+      type: python
+    type: action
+    pauses:
+      after: 50
